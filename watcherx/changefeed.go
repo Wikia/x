@@ -13,8 +13,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 
-	"github.com/ory/x/logrusx"
-	"github.com/ory/x/sqlcon"
+	"github.com/Wikia/x/logrusx"
+	"github.com/Wikia/x/sqlcon"
 )
 
 type row struct {

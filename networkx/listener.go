@@ -4,7 +4,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/ory/x/configx"
+	"github.com/Wikia/x/configx"
 )
 
 func AddressIsUnixSocket(address string) bool {

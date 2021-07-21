@@ -14,7 +14,7 @@ import (
 
 	"github.com/ory/herodot"
 
-	. "github.com/ory/x/logrusx"
+	. "github.com/Wikia/x/logrusx"
 )
 
 var fakeRequest = &http.Request{

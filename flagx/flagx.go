@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ory/x/cmdx"
+	"github.com/Wikia/x/cmdx"
 )
 
 func NewFlagSet(name string) *pflag.FlagSet {

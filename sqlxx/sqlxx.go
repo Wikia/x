@@ -6,7 +6,7 @@ import (
 
 	"github.com/fatih/structs"
 
-	"github.com/ory/x/stringslice"
+	"github.com/Wikia/x/stringslice"
 )
 
 func keys(t interface{}, exclude []string) []string {

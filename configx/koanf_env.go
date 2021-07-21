@@ -12,8 +12,8 @@ import (
 	"github.com/spf13/cast"
 	"github.com/tidwall/gjson"
 
-	"github.com/ory/x/castx"
-	"github.com/ory/x/jsonschemax"
+	"github.com/Wikia/x/castx"
+	"github.com/Wikia/x/jsonschemax"
 )
 
 var pathCache, _ = ristretto.NewCache(&ristretto.Config{

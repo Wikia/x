@@ -7,7 +7,7 @@ import (
 
 	gelf "github.com/seatgeek/logrus-gelf-formatter"
 
-	"github.com/ory/x/stringsx"
+	"github.com/Wikia/x/stringsx"
 )
 
 type (

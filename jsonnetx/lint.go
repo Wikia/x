@@ -10,9 +10,9 @@ import (
 	"github.com/google/go-jsonnet/linter"
 	"github.com/spf13/cobra"
 
-	"github.com/ory/x/flagx"
+	"github.com/Wikia/x/flagx"
 
-	"github.com/ory/x/cmdx"
+	"github.com/Wikia/x/cmdx"
 )
 
 // LintCommand represents the lint command

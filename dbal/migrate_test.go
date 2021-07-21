@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ory/x/logrusx"
-	"github.com/ory/x/stringslice"
+	"github.com/Wikia/x/logrusx"
+	"github.com/Wikia/x/stringslice"
 )
 
 func TestNewPackerMigrationSource(t *testing.T) {

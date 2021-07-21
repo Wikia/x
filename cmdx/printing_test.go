@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/ory/x/stringslice"
+	"github.com/Wikia/x/stringslice"
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"

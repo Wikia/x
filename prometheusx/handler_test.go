@@ -7,9 +7,9 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/Wikia/x/logrusx"
+	prometheus "github.com/Wikia/x/prometheusx"
 	"github.com/ory/herodot"
-	"github.com/ory/x/logrusx"
-	prometheus "github.com/ory/x/prometheusx"
 
 	"github.com/prometheus/common/expfmt"
 	"github.com/stretchr/testify/require"

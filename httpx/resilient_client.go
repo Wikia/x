@@ -9,7 +9,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 
-	"github.com/ory/x/logrusx"
+	"github.com/Wikia/x/logrusx"
 )
 
 type resilientOptions struct {

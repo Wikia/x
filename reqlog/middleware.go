@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/negroni"
 
-	"github.com/ory/x/logrusx"
+	"github.com/Wikia/x/logrusx"
 )
 
 type timer interface {

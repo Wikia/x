@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ory/x/logrusx"
-	"github.com/ory/x/pkgerx"
-	"github.com/ory/x/sqlcon/dockertest"
+	"github.com/Wikia/x/logrusx"
+	"github.com/Wikia/x/pkgerx"
+	"github.com/Wikia/x/sqlcon/dockertest"
 )
 
 //go:embed stub/migrations/transactional/*.sql

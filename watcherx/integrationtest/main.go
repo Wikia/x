@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/ory/x/watcherx"
+	"github.com/Wikia/x/watcherx"
 )
 
 func main() {

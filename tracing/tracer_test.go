@@ -21,8 +21,8 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/ory/x/logrusx"
-	"github.com/ory/x/tracing"
+	"github.com/Wikia/x/logrusx"
+	"github.com/Wikia/x/tracing"
 
 	"go.elastic.co/apm/transport"
 )

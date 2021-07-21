@@ -11,7 +11,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 
-	"github.com/ory/x/logrusx"
+	"github.com/Wikia/x/logrusx"
 
 	zipkinOT "github.com/openzipkin-contrib/zipkin-go-opentracing"
 	"github.com/openzipkin/zipkin-go"

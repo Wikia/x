@@ -10,7 +10,7 @@ import (
 
 	"github.com/knadh/koanf/parsers/json"
 
-	"github.com/ory/x/urlx"
+	"github.com/Wikia/x/urlx"
 
 	"github.com/spf13/pflag"
 

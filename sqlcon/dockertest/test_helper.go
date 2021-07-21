@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ory/x/stringsx"
+	"github.com/Wikia/x/stringsx"
 
 	"github.com/gobuffalo/pop/v5"
 
@@ -26,8 +26,8 @@ import (
 
 	"github.com/ory/dockertest/v3"
 
-	"github.com/ory/x/logrusx"
-	"github.com/ory/x/resilience"
+	"github.com/Wikia/x/logrusx"
+	"github.com/Wikia/x/resilience"
 )
 
 // atexit := atexit.NewOnExit()

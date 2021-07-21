@@ -7,10 +7,10 @@ import (
 	"github.com/gobuffalo/pop/v5"
 	"github.com/pkg/errors"
 
-	"github.com/ory/x/logrusx"
-	"github.com/ory/x/popx"
-	"github.com/ory/x/sqlcon"
-	"github.com/ory/x/tracing"
+	"github.com/Wikia/x/logrusx"
+	"github.com/Wikia/x/popx"
+	"github.com/Wikia/x/sqlcon"
+	"github.com/Wikia/x/tracing"
 )
 
 // Migrations of the network manager. Apply by merging with your local migrations using

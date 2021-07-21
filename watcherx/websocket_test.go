@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ory/x/logrusx"
+	"github.com/Wikia/x/logrusx"
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Wikia/x/urlx"
 	"github.com/ory/herodot"
-	"github.com/ory/x/urlx"
 )
 
 func TestWatchWebsocket(t *testing.T) {

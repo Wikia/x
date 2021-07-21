@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/ory/x/assertx"
+	"github.com/Wikia/x/assertx"
 
 	"github.com/pkg/errors"
 

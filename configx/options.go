@@ -9,12 +9,12 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"github.com/Wikia/x/logrusx"
 	"github.com/ory/jsonschema/v3"
-	"github.com/ory/x/logrusx"
 
 	"github.com/knadh/koanf"
 
-	"github.com/ory/x/watcherx"
+	"github.com/Wikia/x/watcherx"
 )
 
 type (

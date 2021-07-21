@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"text/template"
 
-	"github.com/ory/x/pkgerx"
+	"github.com/Wikia/x/pkgerx"
 
 	"github.com/gobuffalo/fizz"
 	"github.com/gobuffalo/pop/v5"

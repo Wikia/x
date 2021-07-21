@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ory/x/stringslice"
+	"github.com/Wikia/x/stringslice"
 )
 
 // HasContentType determines whether the request `content-type` includes a

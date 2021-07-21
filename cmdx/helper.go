@@ -18,7 +18,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/ory/x/logrusx"
+	"github.com/Wikia/x/logrusx"
 )
 
 var (

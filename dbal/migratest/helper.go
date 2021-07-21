@@ -10,8 +10,8 @@ import (
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ory/x/dbal"
-	"github.com/ory/x/sqlcon/dockertest"
+	"github.com/Wikia/x/dbal"
+	"github.com/Wikia/x/sqlcon/dockertest"
 )
 
 // MigrationSchemas contains several schemas.

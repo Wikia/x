@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
-	"github.com/ory/x/logrusx"
-	"github.com/ory/x/sqlcon/dockertest"
+	"github.com/Wikia/x/logrusx"
+	"github.com/Wikia/x/sqlcon/dockertest"
 )
 
 // Run this test with

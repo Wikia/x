@@ -9,7 +9,7 @@ import (
 	"github.com/gobuffalo/pop/v5"
 	"github.com/pkg/errors"
 
-	"github.com/ory/x/logrusx"
+	"github.com/Wikia/x/logrusx"
 )
 
 type (

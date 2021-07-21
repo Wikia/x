@@ -11,7 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/ory/x/stringsx"
+	"github.com/Wikia/x/stringsx"
 )
 
 // StringSlicePipeDelimiter de/encodes the string slice to/from a SQL string.

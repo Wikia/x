@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 	"go.opentelemetry.io/otel/propagation"
 
-	"github.com/ory/x/errorsx"
+	"github.com/Wikia/x/errorsx"
 )
 
 type Logger struct {

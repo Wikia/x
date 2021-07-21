@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ory/x/logrusx"
+	"github.com/Wikia/x/logrusx"
 
 	"github.com/gobuffalo/pop/v5"
 	"github.com/pkg/errors"

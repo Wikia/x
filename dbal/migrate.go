@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 	migrate "github.com/rubenv/sql-migrate"
 
-	"github.com/ory/x/logrusx"
+	"github.com/Wikia/x/logrusx"
 )
 
 type migrationFile struct {

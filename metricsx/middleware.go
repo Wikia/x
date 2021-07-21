@@ -32,13 +32,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ory/x/configx"
+	"github.com/Wikia/x/configx"
 
 	"github.com/spf13/cobra"
 
-	"github.com/ory/x/cmdx"
-	"github.com/ory/x/logrusx"
-	"github.com/ory/x/resilience"
+	"github.com/Wikia/x/cmdx"
+	"github.com/Wikia/x/logrusx"
+	"github.com/Wikia/x/resilience"
 
 	"github.com/pborman/uuid"
 	"github.com/urfave/negroni"
@@ -196,7 +196,7 @@ func New(
 				Set("optedOut", optOut).
 				Set("instanceId", uuid.New()).
 				Set("isDevelopment", o.IsDevelopment),
-			UserAgent: "github.com/ory/x/metricsx.Service/v0.0.1",
+			UserAgent: "github.com/Wikia/x/metricsx.Service/v0.0.1",
 		},
 	}
 

@@ -7,15 +7,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/ory/x/sqlcon/dockertest"
+	"github.com/Wikia/x/sqlcon/dockertest"
 
 	"github.com/markbates/pkger"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ory/x/logrusx"
+	"github.com/Wikia/x/logrusx"
 )
 
-var testData = pkger.Dir("github.com/ory/x:/pkgerx/testdata")
+var testData = pkger.Dir("github.com/Wikia/x:/pkgerx/testdata")
 
 func TestMigrationBoxTemplating(t *testing.T) {
 	templateVals := map[string]interface{}{

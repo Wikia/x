@@ -14,7 +14,7 @@ import (
 
 	"github.com/ory/jsonschema/v3"
 
-	"github.com/ory/x/stringslice"
+	"github.com/Wikia/x/stringslice"
 )
 
 type (

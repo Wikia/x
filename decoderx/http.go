@@ -20,9 +20,9 @@ import (
 
 	"github.com/ory/herodot"
 
-	"github.com/ory/x/httpx"
-	"github.com/ory/x/jsonschemax"
-	"github.com/ory/x/stringslice"
+	"github.com/Wikia/x/httpx"
+	"github.com/Wikia/x/jsonschemax"
+	"github.com/Wikia/x/stringslice"
 )
 
 type (

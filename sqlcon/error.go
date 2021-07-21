@@ -14,7 +14,7 @@ import (
 
 	"github.com/ory/herodot"
 
-	"github.com/ory/x/errorsx"
+	"github.com/Wikia/x/errorsx"
 )
 
 var (
