@@ -23,7 +23,8 @@ type OTLPConfig struct {
 }
 
 type JaegerSampling struct {
-	ServerURL string `json:"server_url"`
+	ServerURL    string  `json:"server_url"`
+	TraceIdRatio float64 `json:"trace_id_ratio"`
 }
 
 type ZipkinSampling struct {

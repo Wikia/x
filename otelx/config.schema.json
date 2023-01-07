@@ -59,9 +59,7 @@
             "sampling": {
               "type": "object",
               "propertyNames": {
-                "enum": [
-                  "server_url"
-                ]
+                "enum": ["server_url", "trace_id_ratio"]
               },
               "additionalProperties": false,
               "properties": {
@@ -69,9 +67,12 @@
                   "type": "string",
                   "description": "The address of jaeger-agent's HTTP sampling server",
                   "format": "uri",
-                  "examples": [
-                    "http://localhost:5778/sampling"
-                  ]
+                  "examples": ["http://localhost:5778/sampling"]
+                },
+                "trace_id_ratio": {
+                  "type": "number",
+                  "description": "Trace Id ratio sample",
+                  "examples": [0.5]
                 }
               }
             }

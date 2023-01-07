@@ -19,6 +19,7 @@ import (
 // NOTE: If Config.Providers.Jaeger.Sampling.ServerURL is not specfied,
 // AlwaysSample is used.
 func SetupJaeger(t *Tracer, tracerName string) (trace.Tracer, error) {
+	c := t.Config
 	host, port, err := net.SplitHostPort(t.Config.Providers.Jaeger.LocalAgentAddress)
 	if err != nil {
 		return nil, err
@@ -47,6 +48,7 @@ func SetupJaeger(t *Tracer, tracerName string) (trace.Tracer, error) {
 		jaegerRemoteSampler := jaegerremote.New(
 			"jaegerremote",
 			jaegerremote.WithSamplingServerURL(samplingServerURL),
+			jaegerremote.WithInitialSampler(sdktrace.TraceIDRatioBased(c.Providers.Jaeger.Sampling.TraceIdRatio)),
 		)
 		tpOpts = append(tpOpts, sdktrace.WithSampler(jaegerRemoteSampler))
 	} else {
