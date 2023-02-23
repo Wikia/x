@@ -15,11 +15,18 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Optionally, Config.Providers.Jaeger.LocalAgentAddress can be set.
-// NOTE: If Config.Providers.Jaeger.Sampling.ServerURL is not specfied,
-// AlwaysSample is used.
+// SetupJaeger configures and returns a Jaeger tracer.
+//
+// The returned tracer will by default attempt to send spans to a local Jaeger agent.
+// Optionally, [otelx.JaegerConfig.LocalAgentAddress] can be set to specify a different target.
+//
+// By default, unless a parent sampler has taken a sampling decision, every span is sampled.
+// [otelx.JaegerSampling.TraceIdRatio] may be used to customize the sampling probability,
+// optionally alongside [otelx.JaegerSampling.ServerURL] to consult a remote server
+// for the sampling strategy to be used.
 func SetupJaeger(t *Tracer, tracerName string) (trace.Tracer, error) {
-	host, port, err := net.SplitHostPort(t.Config.Providers.Jaeger.LocalAgentAddress)
+	c := t.Config
+	host, port, err := net.SplitHostPort(c.Providers.Jaeger.LocalAgentAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -41,30 +48,36 @@ func SetupJaeger(t *Tracer, tracerName string) (trace.Tracer, error) {
 		)),
 	}
 
-	samplingServerURL := t.Config.Providers.Jaeger.Sampling.ServerURL
+	samplingServerURL := c.Providers.Jaeger.Sampling.ServerURL
+	traceIdRatio := c.Providers.Jaeger.Sampling.TraceIdRatio
+
+	sampler := sdktrace.TraceIDRatioBased(traceIdRatio)
 
 	if samplingServerURL != "" {
-		jaegerRemoteSampler := jaegerremote.New(
+		sampler = jaegerremote.New(
 			"jaegerremote",
 			jaegerremote.WithSamplingServerURL(samplingServerURL),
+			jaegerremote.WithInitialSampler(sampler),
 		)
-		tpOpts = append(tpOpts, sdktrace.WithSampler(jaegerRemoteSampler))
-	} else {
-		tpOpts = append(tpOpts, sdktrace.WithSampler(sdktrace.AlwaysSample()))
 	}
+
+	// Respect any sampling decision taken by the client.
+	sampler = sdktrace.ParentBased(sampler)
+	tpOpts = append(tpOpts, sdktrace.WithSampler(sampler))
+
 	tp := sdktrace.NewTracerProvider(tpOpts...)
 	otel.SetTracerProvider(tp)
 
 	// At the moment, software across our cloud stack only support Zipkin (B3)
-	// and Jaeger propagation formats. Proposals for standardized formats for
-	// context propagation are in the works (ref: https://www.w3.org/TR/trace-context/
+	// and Jaeger propagation formats. For interoperability with other setups,
+	// we also configure propagation using standardized formats for
+	// context propagation (ref: https://www.w3.org/TR/trace-context/
 	// and https://www.w3.org/TR/baggage/).
-	//
-	// Simply add propagation.TraceContext{} and propagation.Baggage{}
-	// here to enable those as well.
 	prop := propagation.NewCompositeTextMapPropagator(
 		jaegerPropagator.Jaeger{},
 		b3.New(b3.WithInjectEncoding(b3.B3MultipleHeader|b3.B3SingleHeader)),
+		propagation.TraceContext{},
+		propagation.Baggage{},
 	)
 	otel.SetTextMapPropagator(prop)
 	return tp.Tracer(tracerName), nil
