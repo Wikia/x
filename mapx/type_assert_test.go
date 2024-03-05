@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package mapx
 
 import (
@@ -12,9 +15,9 @@ func TestGetString(t *testing.T) {
 	v, err := GetString(m, "foo")
 	require.NoError(t, err)
 	assert.EqualValues(t, "bar", v)
-	v, err = GetString(m, "bar")
+	_, err = GetString(m, "bar")
 	require.Error(t, err)
-	v, err = GetString(m, "baz")
+	_, err = GetString(m, "baz")
 	require.Error(t, err)
 }
 
@@ -23,9 +26,9 @@ func TestGetStringSlice(t *testing.T) {
 	v, err := GetStringSlice(m, "foo")
 	require.NoError(t, err)
 	assert.EqualValues(t, []string{"foo", "bar"}, v)
-	v, err = GetStringSlice(m, "bar")
+	_, err = GetStringSlice(m, "bar")
 	require.Error(t, err)
-	v, err = GetStringSlice(m, "baz")
+	_, err = GetStringSlice(m, "baz")
 	require.Error(t, err)
 }
 
@@ -48,9 +51,9 @@ func TestGetFloat32(t *testing.T) {
 	v, err := GetFloat32(m, "baz")
 	require.NoError(t, err)
 	assert.EqualValues(t, float32(1234), v)
-	v, err = GetFloat32(m, "foo")
+	_, err = GetFloat32(m, "foo")
 	require.Error(t, err)
-	v, err = GetFloat32(m, "bar")
+	_, err = GetFloat32(m, "bar")
 	require.Error(t, err)
 }
 
@@ -59,9 +62,9 @@ func TestGetFloat64(t *testing.T) {
 	v, err := GetFloat64(m, "baz")
 	require.NoError(t, err)
 	assert.EqualValues(t, float64(1234), v)
-	v, err = GetFloat64(m, "foo")
+	_, err = GetFloat64(m, "foo")
 	require.Error(t, err)
-	v, err = GetFloat64(m, "bar")
+	_, err = GetFloat64(m, "bar")
 	require.Error(t, err)
 }
 
@@ -120,9 +123,9 @@ func TestGetInt64(t *testing.T) {
 	v, err := GetInt64(m, "baz")
 	require.NoError(t, err)
 	assert.EqualValues(t, int64(1234), v)
-	v, err = GetInt64(m, "foo")
+	_, err = GetInt64(m, "foo")
 	require.Error(t, err)
-	v, err = GetInt64(m, "bar")
+	_, err = GetInt64(m, "bar")
 	require.Error(t, err)
 }
 
@@ -134,9 +137,9 @@ func TestGetInt32(t *testing.T) {
 	v, err = GetInt32(m, "baz2")
 	require.NoError(t, err)
 	assert.EqualValues(t, int32(1234), v)
-	v, err = GetInt32(m, "foo")
+	_, err = GetInt32(m, "foo")
 	require.Error(t, err)
-	v, err = GetInt32(m, "bar")
+	_, err = GetInt32(m, "bar")
 	require.Error(t, err)
 }
 
@@ -149,9 +152,9 @@ func TestGetInt(t *testing.T) {
 	v, err := GetInt32(m, "baz")
 	require.NoError(t, err)
 	assert.EqualValues(t, int32(1234), v)
-	v, err = GetInt32(m, "foo")
+	_, err = GetInt32(m, "foo")
 	require.Error(t, err)
-	v, err = GetInt32(m, "bar")
+	_, err = GetInt32(m, "bar")
 	require.Error(t, err)
 }
 

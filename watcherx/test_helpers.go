@@ -1,7 +1,9 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package watcherx
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -12,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func kubernetesAtomicWrite(t *testing.T, dir, fileName, content string) {
+func KubernetesAtomicWrite(t *testing.T, dir, fileName, content string) {
 	// atomic write according to https://github.com/kubernetes/kubernetes/blob/master/pkg/volume/util/atomic_writer.go
 	const (
 		dataDirName    = "..data"
@@ -33,14 +35,14 @@ func kubernetesAtomicWrite(t *testing.T, dir, fileName, content string) {
 	// (4) we assume the file needs an update
 
 	// (5)
-	tsDir, err := ioutil.TempDir(dir, time.Now().UTC().Format("..2006_01_02_15_04_05."))
+	tsDir, err := os.MkdirTemp(dir, time.Now().UTC().Format("..2006_01_02_15_04_05."))
 	require.NoError(t, err)
 	tsDirName := filepath.Base(tsDir)
 
 	// (6)
 	require.NoError(
 		t,
-		ioutil.WriteFile(path.Join(tsDir, fileName), []byte(content), 0600),
+		os.WriteFile(path.Join(tsDir, fileName), []byte(content), 0600),
 	)
 
 	// (7)

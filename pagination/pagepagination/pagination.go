@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package pagepagination
 
 import (
@@ -5,7 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
+
+	"github.com/ory/x/pagination"
 )
 
 type PagePaginator struct {
@@ -62,68 +66,14 @@ func (p *PagePaginator) ParsePagination(r *http.Request) (page, itemsPerPage int
 	return
 }
 
-func header(u *url.URL, rel string, limit, page int64) string {
+func header(u *url.URL, rel string, limit, offset int64) string {
 	q := u.Query()
 	q.Set("per_page", fmt.Sprintf("%d", limit))
-	q.Set("page", fmt.Sprintf("%d", page/limit))
+	q.Set("page", fmt.Sprintf("%d", offset/limit))
 	u.RawQuery = q.Encode()
 	return fmt.Sprintf("<%s>; rel=\"%s\"", u.String(), rel)
 }
 
 func PaginationHeader(w http.ResponseWriter, u *url.URL, total int64, page, itemsPerPage int) {
-	if itemsPerPage <= 0 {
-		itemsPerPage = 1
-	}
-
-	itemsPerPage64 := int64(itemsPerPage)
-	offset := int64(page) * itemsPerPage64
-
-	// lastOffset will either equal the offset required to contain the remainder,
-	// or the limit.
-	var lastOffset int64
-	if total%itemsPerPage64 == 0 {
-		lastOffset = total - itemsPerPage64
-	} else {
-		lastOffset = (total / itemsPerPage64) * itemsPerPage64
-	}
-
-	w.Header().Set("X-Total-Count", strconv.FormatInt(total, 10))
-
-	// Check for last page
-	if offset >= lastOffset {
-		if total == 0 {
-			w.Header().Set("Link", strings.Join([]string{
-				header(u, "first", itemsPerPage64, 0),
-				header(u, "next", itemsPerPage64, ((offset/itemsPerPage64)+1)*itemsPerPage64),
-				header(u, "prev", itemsPerPage64, ((offset/itemsPerPage64)-1)*itemsPerPage64),
-			}, ","))
-			return
-		}
-
-		if total < itemsPerPage64 {
-			w.Header().Set("link", header(u, "first", total, 0))
-			return
-		}
-
-		w.Header().Set("Link", strings.Join([]string{
-			header(u, "first", itemsPerPage64, 0),
-			header(u, "prev", itemsPerPage64, lastOffset-itemsPerPage64),
-		}, ","))
-		return
-	}
-
-	if offset < itemsPerPage64 {
-		w.Header().Set("Link", strings.Join([]string{
-			header(u, "next", itemsPerPage64, itemsPerPage64),
-			header(u, "last", itemsPerPage64, lastOffset),
-		}, ","))
-		return
-	}
-
-	w.Header().Set("Link", strings.Join([]string{
-		header(u, "first", itemsPerPage64, 0),
-		header(u, "next", itemsPerPage64, ((offset/itemsPerPage64)+1)*itemsPerPage64),
-		header(u, "prev", itemsPerPage64, ((offset/itemsPerPage64)-1)*itemsPerPage64),
-		header(u, "last", itemsPerPage64, lastOffset),
-	}, ","))
+	pagination.HeaderWithFormatter(w, u, total, page, itemsPerPage, header)
 }

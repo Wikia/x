@@ -1,15 +1,26 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package prometheus
 
 import (
 	"net/http"
 	"strings"
+	"sync"
+
+	grpcPrometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 
 	"github.com/julienschmidt/httprouter"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
 type MetricsManager struct {
 	prometheusMetrics *Metrics
-	routers           []*httprouter.Router
+	routers           struct {
+		data []*httprouter.Router
+		sync.Mutex
+	}
 }
 
 func NewMetricsManager(app, version, hash, buildTime string) *MetricsManager {
@@ -30,13 +41,31 @@ func (pmm *MetricsManager) ServeHTTP(rw http.ResponseWriter, r *http.Request, ne
 	pmm.prometheusMetrics.Instrument(rw, next, pmm.getLabelForPath(r))(rw, r)
 }
 
+func (pmm *MetricsManager) StreamServerInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	f := grpcPrometheus.StreamServerInterceptor
+	return f(srv, ss, info, handler)
+}
+
+func (pmm *MetricsManager) UnaryServerInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	f := grpcPrometheus.UnaryServerInterceptor
+	return f(ctx, req, info, handler)
+}
+
+func (pmm *MetricsManager) Register(server *grpc.Server) {
+	grpcPrometheus.Register(server)
+}
+
 func (pmm *MetricsManager) RegisterRouter(router *httprouter.Router) {
-	pmm.routers = append(pmm.routers, router)
+	pmm.routers.Lock()
+	defer pmm.routers.Unlock()
+	pmm.routers.data = append(pmm.routers.data, router)
 }
 
 func (pmm *MetricsManager) getLabelForPath(r *http.Request) string {
 	// looking for a match in one of registered routers
-	for _, router := range pmm.routers {
+	pmm.routers.Lock()
+	defer pmm.routers.Unlock()
+	for _, router := range pmm.routers.data {
 		handler, params, _ := router.Lookup(r.Method, r.URL.Path)
 		if handler != nil {
 			return reconstructEndpoint(r.URL.Path, params)

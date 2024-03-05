@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package dockertest
 
 import (
@@ -31,7 +34,7 @@ func (at *OnExit) Add(f func()) {
 	at.once.Do(func() {
 		go func() {
 			c := make(chan os.Signal, 1)
-			signal.Notify(c, syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM)
+			signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 			<-c
 			at.Exit(interruptedExitCode)
 		}()

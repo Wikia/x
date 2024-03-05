@@ -1,8 +1,10 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package watcherx
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -79,7 +81,9 @@ func handleEvent(e fsnotify.Event, w *fsnotify.Watcher, c EventChannel) {
 			}
 			return
 		}
-		data, err := ioutil.ReadFile(e.Name)
+
+		//#nosec G304 -- false positive
+		data, err := os.ReadFile(e.Name)
 		if err != nil {
 			c <- &ErrorEvent{
 				error:  err,
@@ -110,7 +114,8 @@ func streamDirectoryEvents(ctx context.Context, w *fsnotify.Watcher, c EventChan
 					return err
 				}
 				if !info.IsDir() {
-					data, err := ioutil.ReadFile(path)
+					//#nosec G304 -- false positive
+					data, err := os.ReadFile(path)
 					if err != nil {
 						c <- &ErrorEvent{
 							error:  err,

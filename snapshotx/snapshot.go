@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package snapshotx
 
 import (
@@ -7,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/pretty"
 
 	"github.com/ory/x/stringslice"
 
@@ -46,7 +50,26 @@ func ExceptNestedKeys(nestedKeys ...string) ExceptOpt {
 	return exceptNestedKeys(nestedKeys)
 }
 
+func SnapshotTJSON(t *testing.T, compare []byte, except ...ExceptOpt) {
+	t.Helper()
+	for _, e := range except {
+		compare = e.apply(t, compare)
+	}
+
+	cupaloy.New(
+		cupaloy.CreateNewAutomatically(true),
+		cupaloy.FailOnUpdate(true),
+		cupaloy.SnapshotFileExtension(".json"),
+	).SnapshotT(t, pretty.Pretty(compare))
+}
+
+func SnapshotTJSONString(t *testing.T, str string, except ...ExceptOpt) {
+	t.Helper()
+	SnapshotTJSON(t, []byte(str), except...)
+}
+
 func SnapshotT(t *testing.T, actual interface{}, except ...ExceptOpt) {
+	t.Helper()
 	compare, err := json.MarshalIndent(actual, "", "  ")
 	require.NoError(t, err, "%+v", actual)
 	for _, e := range except {
@@ -64,6 +87,7 @@ func SnapshotT(t *testing.T, actual interface{}, except ...ExceptOpt) {
 //
 // DEPRECATED: please use SnapshotT instead
 func SnapshotTExcept(t *testing.T, actual interface{}, except []string) {
+	t.Helper()
 	compare, err := json.MarshalIndent(actual, "", "  ")
 	require.NoError(t, err, "%+v", actual)
 	for _, e := range except {
@@ -114,6 +138,7 @@ func deleteMatches(t *testing.T, key string, result gjson.Result, matches []stri
 //
 // DEPRECATED: please use SnapshotT instead
 func SnapshotTExceptMatchingKeys(t *testing.T, actual interface{}, matches []string) {
+	t.Helper()
 	compare, err := json.MarshalIndent(actual, "", "  ")
 	require.NoError(t, err, "%+v", actual)
 

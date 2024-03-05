@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package configx
 
 import (
@@ -11,12 +14,15 @@ import (
 )
 
 func TestKoanfMemory(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	doc := []byte(`{
   "foo": {
     "bar": "baz"
   }
 }`)
-	kf := NewKoanfMemory(context.Background(), doc)
+	kf := NewKoanfMemory(ctx, doc)
 
 	actual, err := kf.Read()
 	require.NoError(t, err)

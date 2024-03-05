@@ -1,9 +1,11 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package pkgerx
 
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"text/template"
@@ -32,7 +34,7 @@ type (
 
 func templatingMigrationContent(params map[string]interface{}) func(pop.Migration, *pop.Connection, io.Reader, bool) (string, error) {
 	return func(mf pop.Migration, c *pop.Connection, r io.Reader, usingTemplate bool) (string, error) {
-		b, err := ioutil.ReadAll(r)
+		b, err := io.ReadAll(r)
 		if err != nil {
 			return "", nil
 		}
@@ -93,7 +95,6 @@ func WithMigrationContentMiddleware(middleware func(content string, err error) (
 // NewMigrationBox from a packr.Dir and a Connection.
 //
 //	migrations, err := NewMigrationBox(pkger.Dir("/migrations"))
-//
 func NewMigrationBox(dir pkger.Dir, c *pop.Connection, l *logrusx.Logger, opts ...func(*MigrationBox) *MigrationBox) (*MigrationBox, error) {
 	mb := &MigrationBox{
 		Migrator:         pop.NewMigrator(c),
@@ -157,7 +158,7 @@ func (fm *MigrationBox) findMigrations(runner func(f io.Reader) func(mf pop.Migr
 		}
 		defer file.Close()
 
-		content, err := ioutil.ReadAll(file)
+		content, err := io.ReadAll(file)
 		if err != nil {
 			return errors.WithStack(err)
 		}

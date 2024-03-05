@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package otelx
 
 import (
@@ -24,8 +27,7 @@ import (
 // [otelx.JaegerSampling.TraceIdRatio] may be used to customize the sampling probability,
 // optionally alongside [otelx.JaegerSampling.ServerURL] to consult a remote server
 // for the sampling strategy to be used.
-func SetupJaeger(t *Tracer, tracerName string) (trace.Tracer, error) {
-	c := t.Config
+func SetupJaeger(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) {
 	host, port, err := net.SplitHostPort(c.Providers.Jaeger.LocalAgentAddress)
 	if err != nil {
 		return nil, err
@@ -44,7 +46,7 @@ func SetupJaeger(t *Tracer, tracerName string) (trace.Tracer, error) {
 		sdktrace.WithBatcher(exp),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(t.Config.ServiceName),
+			semconv.ServiceNameKey.String(c.ServiceName),
 		)),
 	}
 

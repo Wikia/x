@@ -1,8 +1,10 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package watcherx
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -22,7 +24,7 @@ func TestWatchDirectory(t *testing.T) {
 		_, err := WatchDirectory(ctx, dir, c)
 		require.NoError(t, err)
 		fileName := filepath.Join(dir, "example")
-		f, err := os.Create(fileName)
+		f, err := os.Create(fileName) //#nosec:G304
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
 
@@ -34,12 +36,13 @@ func TestWatchDirectory(t *testing.T) {
 		defer cancel()
 
 		fileName := filepath.Join(dir, "example")
-		f, err := os.Create(fileName)
+		f, err := os.Create(fileName) //#nosec:G304
 		require.NoError(t, err)
 		_, err = WatchDirectory(ctx, dir, c)
 		require.NoError(t, err)
 
 		_, err = fmt.Fprintf(f, "content")
+		require.NoError(t, err)
 		require.NoError(t, f.Close())
 
 		assertChange(t, <-c, "content", fileName)
@@ -50,7 +53,7 @@ func TestWatchDirectory(t *testing.T) {
 		defer cancel()
 
 		fileName := filepath.Join(dir, "example")
-		f, err := os.Create(fileName)
+		f, err := os.Create(fileName) //#nosec:G304
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
 
@@ -72,7 +75,7 @@ func TestWatchDirectory(t *testing.T) {
 		require.NoError(t, err)
 
 		fileName := filepath.Join(childDir, "example")
-		f, err := os.Create(fileName)
+		f, err := os.Create(fileName) //#nosec:G304
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
 
@@ -91,7 +94,7 @@ func TestWatchDirectory(t *testing.T) {
 		fileName := filepath.Join(childDir, "example")
 		// there's not much we can do about this timeout as it takes some time until the new watcher is created
 		time.Sleep(time.Millisecond)
-		f, err := os.Create(fileName)
+		f, err := os.Create(fileName) //#nosec:G304
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
 
@@ -131,11 +134,11 @@ func TestWatchDirectory(t *testing.T) {
 		subChildDir := filepath.Join(childDir, "subchild")
 		require.NoError(t, os.MkdirAll(subChildDir, 0777))
 		f1 := filepath.Join(subChildDir, "f1")
-		f, err := os.Create(f1)
+		f, err := os.Create(f1) //#nosec:G304
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
 		f2 := filepath.Join(childDir, "f2")
-		f, err = os.Create(f2)
+		f, err = os.Create(f2) //#nosec:G304
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
 
@@ -153,11 +156,11 @@ func TestWatchDirectory(t *testing.T) {
 	})
 
 	t.Run("case=sends event when requested", func(t *testing.T) {
-		ctx, c, dir, cancel := setup(t)
+		ctx, _, dir, cancel := setup(t)
 		defer cancel()
 
 		// buffered channel to allow usage of DispatchNow().done
-		c = make(EventChannel, 4)
+		c := make(EventChannel, 4)
 
 		files := map[string]string{
 			"a":                     "foo",
@@ -168,7 +171,7 @@ func TestWatchDirectory(t *testing.T) {
 		for fn, fc := range files {
 			fp := filepath.Join(dir, fn)
 			require.NoError(t, os.MkdirAll(filepath.Dir(fp), 0700))
-			require.NoError(t, ioutil.WriteFile(fp, []byte(fc), 0600))
+			require.NoError(t, os.WriteFile(fp, []byte(fc), 0600))
 		}
 
 		d, err := WatchDirectory(ctx, dir, c)

@@ -1,8 +1,11 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package configx
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 	"path"
 	"testing"
 	"time"
@@ -106,6 +109,9 @@ func TestProviderMethods(t *testing.T) {
 }
 
 func TestAdvancedConfigs(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	for _, tc := range []struct {
 		stub      string
 		configs   []string
@@ -163,13 +169,13 @@ func TestAdvancedConfigs(t *testing.T) {
 			stub:    "hydra",
 			configs: []string{"stub/hydra/hydra.yaml"},
 			isValid: false,
-			ops:     []OptionModifier{WithUserProviders(NewKoanfMemory(context.Background(), []byte(`{"dsn": null}`)))},
+			ops:     []OptionModifier{WithUserProviders(NewKoanfMemory(ctx, []byte(`{"dsn": null}`)))},
 		},
 		{
 			stub:    "hydra",
 			configs: []string{"stub/hydra/hydra.yaml"},
 			isValid: true,
-			ops:     []OptionModifier{WithUserProviders(NewKoanfMemory(context.Background(), []byte(`{"dsn": "invalid"}`)))},
+			ops:     []OptionModifier{WithUserProviders(NewKoanfMemory(ctx, []byte(`{"dsn": "invalid"}`)))},
 			envs: [][2]string{
 				{"DSN", "sqlite:///var/lib/sqlite/db.sqlite?_fk=true"},
 				{"TRACING_PROVIDER", "jaeger"},
@@ -183,7 +189,7 @@ func TestAdvancedConfigs(t *testing.T) {
 		t.Run("service="+tc.stub, func(t *testing.T) {
 			setEnvs(t, tc.envs)
 
-			expected, err := ioutil.ReadFile(path.Join("stub", tc.stub, "expected.json"))
+			expected, err := os.ReadFile(path.Join("stub", tc.stub, "expected.json"))
 			require.NoError(t, err)
 
 			schemaPath := path.Join("stub", tc.stub, "config.schema.json")

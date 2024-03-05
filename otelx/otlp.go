@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package otelx
 
 import (
@@ -6,20 +9,21 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
-func SetupOTLP(t *Tracer, tracerName string) (trace.Tracer, error) {
+func SetupOTLP(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) {
 	ctx := context.Background()
 
 	clientOpts := []otlptracehttp.Option{
-		otlptracehttp.WithEndpoint(t.Config.Providers.OTLP.ServerURL),
+		otlptracehttp.WithEndpoint(c.Providers.OTLP.ServerURL),
 	}
 
-	if t.Config.Providers.OTLP.Insecure {
+	if c.Providers.OTLP.Insecure {
 		clientOpts = append(clientOpts, otlptracehttp.WithInsecure())
 	}
 
@@ -34,15 +38,20 @@ func SetupOTLP(t *Tracer, tracerName string) (trace.Tracer, error) {
 		sdktrace.WithBatcher(exp),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(t.Config.ServiceName),
+			semconv.ServiceNameKey.String(c.ServiceName),
 		)),
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(
-			t.Config.Providers.OTLP.Sampling.SamplingRatio,
+			c.Providers.OTLP.Sampling.SamplingRatio,
 		))),
 	}
 
 	tp := sdktrace.NewTracerProvider(tpOpts...)
 	otel.SetTracerProvider(tp)
+
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
 
 	return tp.Tracer(tracerName), nil
 }

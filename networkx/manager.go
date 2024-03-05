@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package networkx
 
 import (
@@ -15,6 +18,7 @@ import (
 
 // Migrations of the network manager. Apply by merging with your local migrations using
 // fsx.Merge() and then passing all to the migration box.
+//
 //go:embed migrations/sql/*.sql
 var Migrations embed.FS
 

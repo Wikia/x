@@ -1,22 +1,5 @@
-/*
- * Copyright © 2015-2018 Aeneas Rekkas <aeneas+oss@aeneas.io>
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * @author		Aeneas Rekkas <aeneas+oss@aeneas.io>
- * @copyright 	2015-2018 Aeneas Rekkas <aeneas+oss@aeneas.io>
- * @license 	Apache-2.0
- */
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
 
 package metricsx
 
@@ -24,8 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
-	"net"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -47,10 +29,11 @@ import (
 	"github.com/ory/x/cmdx"
 	"github.com/ory/x/logrusx"
 	"github.com/ory/x/resilience"
+	"github.com/ory/x/stringsx"
 
-	"github.com/pborman/uuid"
+	"github.com/gofrs/uuid"
 
-	analytics "github.com/ory/analytics-go/v4"
+	analytics "github.com/ory/analytics-go/v5"
 )
 
 var instance *Service
@@ -58,11 +41,10 @@ var lock sync.Mutex
 
 // Service helps with providing context on metrics.
 type Service struct {
-	optOut bool
-	salt   string
+	optOut     bool
+	instanceId string
 
-	o       *Options
-	context *analytics.Context
+	o *Options
 
 	c analytics.Client
 	l *logrusx.Logger
@@ -72,12 +54,8 @@ type Service struct {
 
 // Hash returns a hashed string of the value.
 func Hash(value string) string {
-	hash := sha256.New()
-	_, err := hash.Write([]byte(value))
-	if err != nil {
-		panic(fmt.Sprintf("unable to hash value"))
-	}
-	return hex.EncodeToString(hash.Sum(nil))
+	sha := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sha[:])
 }
 
 // Options configures the metrics service.
@@ -85,8 +63,13 @@ type Options struct {
 	// Service represents the service name, for example "ory-hydra".
 	Service string
 
-	// ClusterID represents the cluster id, typically a hash of some unique configuration properties.
-	ClusterID string
+	// DeploymentId represents the cluster id, typically a hash of some unique configuration properties.
+	DeploymentId string
+
+	DBDialect string
+
+	// When this instance was started
+	StartTime time.Time
 
 	// IsDevelopment should be true if we assume that we're in a development environment.
 	IsDevelopment bool
@@ -136,6 +119,8 @@ func New(
 		return instance
 	}
 
+	o.StartTime = time.Now()
+
 	if o.BuildTime == "" {
 		o.BuildTime = "unknown"
 	}
@@ -150,7 +135,7 @@ func New(
 
 	if o.Config == nil {
 		o.Config = &analytics.Config{
-			Interval: time.Hour * 24,
+			Interval: time.Hour * 6,
 		}
 	}
 
@@ -165,8 +150,6 @@ func New(
 		l.WithError(err).Fatalf("Unable to initialise software quality assurance features.")
 		return nil
 	}
-
-	var oi analytics.OSInfo
 
 	optOut, err := cmd.Flags().GetBool("sqa-opt-out")
 	if err != nil {
@@ -191,57 +174,60 @@ func New(
 
 	if !optOut {
 		l.Info("Software quality assurance features are enabled. Learn more at: https://www.ory.sh/docs/ecosystem/sqa")
-		oi = analytics.OSInfo{
-			Version: fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH),
-		}
 	}
 
 	m := &Service{
-		optOut: optOut,
-		salt:   uuid.New(),
-		o:      o,
-		c:      segment,
-		l:      l,
-		mem:    new(MemoryStatistics),
-		context: &analytics.Context{
-			IP: net.IPv4(0, 0, 0, 0),
-			App: analytics.AppInfo{
-				Name:    o.Service,
-				Version: o.BuildVersion,
-				Build:   fmt.Sprintf("%s/%s/%s", o.BuildVersion, o.BuildHash, o.BuildTime),
-			},
-			OS: oi,
-			Traits: analytics.NewTraits().
-				Set("optedOut", optOut).
-				Set("instanceId", uuid.New()).
-				Set("isDevelopment", o.IsDevelopment),
-			UserAgent: "github.com/ory/x/metricsx.Service/v0.0.1",
-		},
+		optOut:     optOut,
+		instanceId: uuid.Must(uuid.NewV4()).String(),
+		o:          o,
+		c:          segment,
+		l:          l,
+		mem:        new(MemoryStatistics),
 	}
 
 	instance = m
 
 	go m.Identify()
-	go m.ObserveMemory()
+	go m.Track()
 
 	return m
 }
 
 // Identify enables reporting to segment.
 func (sw *Service) Identify() {
-	if err := resilience.Retry(sw.l, time.Minute*5, time.Hour*24*30, func() error {
+	IdentifySend(sw, true)
+
+	// User has not opt-out then make identify to be sent every 6 hours
+	if !sw.optOut {
+		for range time.Tick(time.Hour * 6) {
+			IdentifySend(sw, false)
+		}
+	}
+}
+
+func IdentifySend(sw *Service, startup bool) {
+	if err := resilience.Retry(sw.l, time.Minute*5, time.Hour*6, func() error {
 		return sw.c.Enqueue(analytics.Identify{
-			UserId:  sw.o.ClusterID,
-			Traits:  sw.context.Traits,
-			Context: sw.context,
+			InstanceId:   sw.instanceId,
+			DeploymentId: sw.o.DeploymentId,
+			Project:      sw.o.Service,
+
+			DatabaseDialect:  sw.o.DBDialect,
+			ProductVersion:   sw.o.BuildVersion,
+			ProductBuild:     sw.o.BuildHash,
+			UptimeDeployment: 0,
+			UptimeInstance:   math.Round(time.Since(sw.o.StartTime).Seconds()),
+			IsDevelopment:    sw.o.IsDevelopment,
+			IsOptOut:         sw.optOut,
+			Startup:          startup,
 		})
 	}); err != nil {
 		sw.l.WithError(err).Debug("Could not commit anonymized environment information")
 	}
 }
 
-// ObserveMemory commits memory statistics to segment.
-func (sw *Service) ObserveMemory() {
+// Track commits memory statistics to segment.
+func (sw *Service) Track() {
 	if sw.optOut {
 		return
 	}
@@ -249,20 +235,31 @@ func (sw *Service) ObserveMemory() {
 	for {
 		sw.mem.Update()
 		if err := sw.c.Enqueue(analytics.Track{
-			UserId:     sw.o.ClusterID,
-			Event:      "memstats",
-			Properties: analytics.Properties(sw.mem.ToMap()),
-			Context:    sw.context,
+			InstanceId:   sw.instanceId,
+			DeploymentId: sw.o.DeploymentId,
+			Project:      sw.o.Service,
+
+			CPU:            runtime.NumCPU(),
+			OsName:         runtime.GOOS,
+			OsArchitecture: runtime.GOARCH,
+			Alloc:          sw.mem.Alloc,
+			TotalAlloc:     sw.mem.TotalAlloc,
+			Frees:          sw.mem.Frees,
+			Mallocs:        sw.mem.Mallocs,
+			Lookups:        sw.mem.Lookups,
+			Sys:            sw.mem.Sys,
+			NumGC:          sw.mem.NumGC,
+			HeapAlloc:      sw.mem.HeapAlloc,
+			HeapInuse:      sw.mem.HeapInuse,
+			HeapIdle:       sw.mem.HeapIdle,
+			HeapObjects:    sw.mem.HeapObjects,
+			HeapReleased:   sw.mem.HeapReleased,
+			HeapSys:        sw.mem.HeapSys,
 		}); err != nil {
 			sw.l.WithError(err).Debug("Could not commit anonymized telemetry data")
 		}
 		time.Sleep(sw.o.MemoryInterval)
 	}
-}
-
-type negroniMiddleware interface {
-	Size() int
-	Status() int
 }
 
 // ServeHTTP is a middleware for sending meta information to segment.
@@ -278,32 +275,21 @@ func (sw *Service) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.
 		return
 	}
 
-	latency := time.Since(start) / time.Millisecond
-
-	scheme := "https:"
-	if r.TLS == nil {
-		scheme = "http:"
-	}
-
-	path := sw.anonymizePath(r.URL.Path, sw.salt)
-	query := sw.anonymizeQuery(r.URL.Query(), sw.salt)
+	latency := time.Since(start).Milliseconds()
+	path := sw.anonymizePath(r.URL.Path)
 
 	// Collecting request info
-	stat, size := httpx.GetResponseMeta(rw)
+	stat, _ := httpx.GetResponseMeta(rw)
 
 	if err := sw.c.Enqueue(analytics.Page{
-		UserId: sw.o.ClusterID,
-		Name:   path,
-		Properties: analytics.
-			NewProperties().
-			SetURL(scheme+"//"+sw.o.ClusterID+path+"?"+query).
-			SetPath(path).
-			SetName(path).
-			Set("status", stat).
-			Set("size", size).
-			Set("latency", latency).
-			Set("method", r.Method),
-		Context: sw.context,
+		InstanceId:   sw.instanceId,
+		DeploymentId: sw.o.DeploymentId,
+		Project:      sw.o.Service,
+
+		UrlHost:        stringsx.Coalesce(r.Header.Get("X-Forwarded-Host"), r.Host),
+		UrlPath:        path,
+		RequestCode:    stat,
+		RequestLatency: int(latency),
 	}); err != nil {
 		sw.l.WithError(err).Debug("Could not commit anonymized telemetry data")
 		// do nothing...
@@ -322,19 +308,16 @@ func (sw *Service) UnaryInterceptor(ctx context.Context, req interface{}, info *
 		return resp, err
 	}
 
-	latency := time.Since(start) / time.Millisecond
+	latency := time.Since(start).Milliseconds()
 
 	if err := sw.c.Enqueue(analytics.Page{
-		UserId: sw.o.ClusterID,
-		Name:   info.FullMethod,
-		Properties: analytics.
-			NewProperties().
-			SetURL("grpc://"+sw.o.ClusterID+info.FullMethod).
-			SetPath(info.FullMethod).
-			SetName(info.FullMethod).
-			Set("status", status.Code(err)).
-			Set("latency", latency),
-		Context: sw.context,
+		InstanceId:   sw.instanceId,
+		DeploymentId: sw.o.DeploymentId,
+		Project:      sw.o.Service,
+
+		UrlPath:        info.FullMethod,
+		RequestCode:    int(status.Code(err)),
+		RequestLatency: int(latency),
 	}); err != nil {
 		sw.l.WithError(err).Debug("Could not commit anonymized telemetry data")
 		// do nothing...
@@ -353,7 +336,7 @@ func (sw *Service) Close() error {
 	return sw.c.Close()
 }
 
-func (sw *Service) anonymizePath(path string, salt string) string {
+func (sw *Service) anonymizePath(path string) string {
 	paths := sw.o.WhitelistedPaths
 	path = strings.ToLower(path)
 
@@ -361,8 +344,8 @@ func (sw *Service) anonymizePath(path string, salt string) string {
 		p = strings.ToLower(p)
 		if path == p {
 			return p
-		} else if strings.HasPrefix(path, p) {
-			return path[:len(p)] + "/" + Hash(path[len(p):]+"|"+salt)
+		} else if len(path) > len(p) && path[:len(p)+1] == p+"/" {
+			return p
 		}
 	}
 

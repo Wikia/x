@@ -1,7 +1,9 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package configx
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -10,7 +12,7 @@ import (
 )
 
 func TestSetPerm(t *testing.T) {
-	f, e := ioutil.TempFile("", "test")
+	f, e := os.CreateTemp("", "test")
 	require.NoError(t, e)
 	path := f.Name()
 

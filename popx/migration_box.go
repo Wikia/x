@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package popx
 
 import (
@@ -25,18 +28,18 @@ type (
 		migrationContent MigrationContent
 		goMigrations     Migrations
 	}
-	MigrationContent func(mf Migration, c *pop.Connection, r []byte, usingTemplate bool) (string, error)
-	GoMigration      func(c *pop.Tx) error
+	MigrationContent   func(mf Migration, c *pop.Connection, r []byte, usingTemplate bool) (string, error)
+	MigrationBoxOption func(*MigrationBox) *MigrationBox
 )
 
-func WithTemplateValues(v map[string]interface{}) func(*MigrationBox) *MigrationBox {
+func WithTemplateValues(v map[string]interface{}) MigrationBoxOption {
 	return func(m *MigrationBox) *MigrationBox {
 		m.migrationContent = ParameterizedMigrationContent(v)
 		return m
 	}
 }
 
-func WithMigrationContentMiddleware(middleware func(content string, err error) (string, error)) func(*MigrationBox) *MigrationBox {
+func WithMigrationContentMiddleware(middleware func(content string, err error) (string, error)) MigrationBoxOption {
 	return func(m *MigrationBox) *MigrationBox {
 		prev := m.migrationContent
 		m.migrationContent = func(mf Migration, c *pop.Connection, r []byte, usingTemplate bool) (string, error) {
@@ -49,16 +52,16 @@ func WithMigrationContentMiddleware(middleware func(content string, err error) (
 // WithGoMigrations adds migrations that have a custom migration runner.
 // TEST THEM THOROUGHLY!
 // It will be very hard to fix a buggy migration.
-func WithGoMigrations(migrations Migrations) func(*MigrationBox) *MigrationBox {
+func WithGoMigrations(migrations Migrations) MigrationBoxOption {
 	return func(m *MigrationBox) *MigrationBox {
 		m.goMigrations = migrations
 		return m
 	}
 }
 
-// WithTestdata
-func WithTestdata(t *testing.T, testdata fs.FS) func(*MigrationBox) *MigrationBox {
-	testdataPattern := regexp.MustCompile(`^(\d+)_testdata.sql`)
+// WithTestdata adds testdata to the migration box.
+func WithTestdata(t *testing.T, testdata fs.FS) MigrationBoxOption {
+	testdataPattern := regexp.MustCompile(`^(\d+)_testdata(|\.[a-zA-Z0-9]+).sql$`)
 	return func(m *MigrationBox) *MigrationBox {
 		require.NoError(t, fs.WalkDir(testdata, ".", func(path string, info fs.DirEntry, err error) error {
 			if err != nil {
@@ -67,16 +70,26 @@ func WithTestdata(t *testing.T, testdata fs.FS) func(*MigrationBox) *MigrationBo
 			if info.IsDir() {
 				return nil
 			}
+
 			match := testdataPattern.FindStringSubmatch(info.Name())
-			if len(match) != 2 {
+			if len(match) != 2 && len(match) != 3 {
+				t.Logf(`WARNING! Found a test migration which does not match the test data pattern: %s`, info.Name())
 				return nil
 			}
+
 			version := match[1]
+			flavor := "all"
+			if len(match) == 3 && len(match[2]) > 0 {
+				flavor = pop.CanonicalDialect(strings.TrimPrefix(match[2], "."))
+			}
+
+			//t.Logf("Found test migration \"%s\" (%s, %+v): %s", flavor, match, err, info.Name())
+
 			m.Migrations["up"] = append(m.Migrations["up"], Migration{
 				Version:   version + "9", // run testdata after version
 				Path:      path,
-				Name:      "testdata",
-				DBType:    "all",
+				Name:      info.Name(),
+				DBType:    flavor,
 				Direction: "up",
 				Type:      "sql",
 				Runner: func(m Migration, _ *pop.Connection, tx *pop.Tx) error {
@@ -84,15 +97,21 @@ func WithTestdata(t *testing.T, testdata fs.FS) func(*MigrationBox) *MigrationBo
 					if err != nil {
 						return err
 					}
+					if isMigrationEmpty(string(b)) {
+						return nil
+					}
 					_, err = tx.Exec(string(b))
+					//match := match
+					//t.Logf("Ran test migration \"%s\" (%s, %+v) with error \"%v\" and content:\n %s", m.Path, m.DBType, match, err, string(b))
 					return err
 				},
 			})
+
 			m.Migrations["down"] = append(m.Migrations["down"], Migration{
 				Version:   version + "9", // run testdata after version
 				Path:      path,
-				Name:      "testdata",
-				DBType:    "all",
+				Name:      info.Name(),
+				DBType:    flavor,
 				Direction: "down",
 				Type:      "sql",
 				Runner: func(m Migration, _ *pop.Connection, tx *pop.Tx) error {
@@ -100,15 +119,22 @@ func WithTestdata(t *testing.T, testdata fs.FS) func(*MigrationBox) *MigrationBo
 				},
 			})
 
+			sort.Sort(m.Migrations["up"])
+			sort.Sort(sort.Reverse(m.Migrations["down"]))
 			return nil
 		}))
-
 		return m
 	}
 }
 
+var emptySQLReplace = regexp.MustCompile(`(?m)^(\s*--.*|\s*)$`)
+
+func isMigrationEmpty(content string) bool {
+	return len(strings.ReplaceAll(emptySQLReplace.ReplaceAllString(content, ""), "\n", "")) == 0
+}
+
 // NewMigrationBox creates a new migration box.
-func NewMigrationBox(dir fs.FS, m *Migrator, opts ...func(*MigrationBox) *MigrationBox) (*MigrationBox, error) {
+func NewMigrationBox(dir fs.FS, m *Migrator, opts ...MigrationBoxOption) (*MigrationBox, error) {
 	mb := &MigrationBox{
 		Migrator:         m,
 		Dir:              dir,
@@ -126,7 +152,7 @@ func NewMigrationBox(dir fs.FS, m *Migrator, opts ...func(*MigrationBox) *Migrat
 			if err != nil {
 				return errors.Wrapf(err, "error processing %s", mf.Path)
 			}
-			if content == "" {
+			if isMigrationEmpty(content) {
 				m.l.WithField("migration", mf.Path).Trace("This is usually ok - ignoring migration because content is empty. This is ok!")
 				return nil
 			}
@@ -180,6 +206,7 @@ func (fm *MigrationBox) findMigrations(runner func([]byte) func(mf Migration, c 
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		defer f.Close()
 		content, err := io.ReadAll(f)
 		if err != nil {
 			return errors.WithStack(err)
@@ -195,7 +222,7 @@ func (fm *MigrationBox) findMigrations(runner func([]byte) func(mf Migration, c 
 			Runner:    runner(content),
 		}
 		fm.Migrations[mf.Direction] = append(fm.Migrations[mf.Direction], mf)
-		mod := sortIdent(fm.Migrations[mf.Direction])
+		mod := sort.Interface(fm.Migrations[mf.Direction])
 		if mf.Direction == "down" {
 			mod = sort.Reverse(mod)
 		}

@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package contextx
 
 import (
@@ -23,6 +26,7 @@ type (
 		NID uuid.UUID
 		C   *configx.Provider
 	}
+	NoOp struct{}
 )
 
 func (d *Static) Network(ctx context.Context, network uuid.UUID) uuid.UUID {
@@ -31,4 +35,12 @@ func (d *Static) Network(ctx context.Context, network uuid.UUID) uuid.UUID {
 
 func (d *Static) Config(ctx context.Context, config *configx.Provider) *configx.Provider {
 	return d.C
+}
+
+func (d *NoOp) Network(ctx context.Context, network uuid.UUID) uuid.UUID {
+	return network
+}
+
+func (d *NoOp) Config(ctx context.Context, config *configx.Provider) *configx.Provider {
+	return config
 }

@@ -1,8 +1,13 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package prometheus
 
 import (
 	"net/http"
 	"strconv"
+
+	grpcPrometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 
 	"github.com/ory/x/httpx"
 
@@ -50,12 +55,12 @@ func NewMetrics(app, metricsPrefix, version, hash, date string) *Metrics {
 			Name:        metricsPrefix + "requests_total",
 			Help:        "number of requests",
 			ConstLabels: labels,
-		}, []string{"code", "method"}),
+		}, []string{"code", "method", "endpoint"}),
 		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        metricsPrefix + "requests_duration_seconds",
 			Help:        "duration of a requests in seconds",
 			ConstLabels: labels,
-		}, []string{"code", "method"}),
+		}, []string{"code", "method", "endpoint"}),
 		responseSize: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        metricsPrefix + "response_size_bytes",
 			Help:        "size of the responses in bytes",
@@ -79,6 +84,8 @@ func NewMetrics(app, metricsPrefix, version, hash, date string) *Metrics {
 	} else if err != nil {
 		panic(err)
 	}
+
+	grpcPrometheus.EnableHandlingTimeHistogram()
 
 	return pm
 }
@@ -129,13 +136,14 @@ func (h Metrics) instrumentHandlerStatusBucket(next http.Handler) http.HandlerFu
 // Instrument will instrument any http.HandlerFunc with custom metrics
 func (h Metrics) Instrument(rw http.ResponseWriter, next http.HandlerFunc, endpoint string) http.HandlerFunc {
 	labels := prometheus.Labels{}
+	labelsWithEndpoint := prometheus.Labels{"endpoint": endpoint}
 	if status, _ := httpx.GetResponseMeta(rw); status != 0 {
 		labels = prometheus.Labels{"code": strconv.Itoa(status)}
+		labelsWithEndpoint["code"] = labels["code"]
 	}
-
 	wrapped := promhttp.InstrumentHandlerResponseSize(h.responseSize.MustCurryWith(labels), next)
-	wrapped = promhttp.InstrumentHandlerCounter(h.totalRequests.MustCurryWith(labels), wrapped)
-	wrapped = promhttp.InstrumentHandlerDuration(h.duration.MustCurryWith(labels), wrapped)
+	wrapped = promhttp.InstrumentHandlerCounter(h.totalRequests.MustCurryWith(labelsWithEndpoint), wrapped)
+	wrapped = promhttp.InstrumentHandlerDuration(h.duration.MustCurryWith(labelsWithEndpoint), wrapped)
 	wrapped = promhttp.InstrumentHandlerDuration(h.responseTime.MustCurryWith(prometheus.Labels{"endpoint": endpoint}), wrapped)
 	wrapped = promhttp.InstrumentHandlerRequestSize(h.requestSize.MustCurryWith(labels), wrapped)
 	wrapped = h.instrumentHandlerStatusBucket(wrapped)

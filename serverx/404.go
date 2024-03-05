@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package serverx
 
 import (
@@ -38,6 +41,4 @@ var DefaultNotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *htt
 	w.Header().Set("Content-Type", contentType+"; charset=utf-8")
 	w.WriteHeader(http.StatusNotFound)
 	_, _ = w.Write(body) // #nosec
-
-	return
 })

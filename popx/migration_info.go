@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package popx
 
 import (
@@ -53,10 +56,6 @@ func (mfs Migrations) Swap(i, j int) {
 	mfs[i], mfs[j] = mfs[j], mfs[i]
 }
 
-func sortIdent(i sort.Interface) sort.Interface {
-	return i
-}
-
 func (mfs Migrations) SortAndFilter(dialect string, modifiers ...func(sort.Interface) sort.Interface) Migrations {
 	// We need to sort mfs in order to push the dbType=="all" migrations
 	// to the back.
@@ -83,7 +82,7 @@ func (mfs Migrations) SortAndFilter(dialect string, modifiers ...func(sort.Inter
 		}
 	}
 
-	mod := sortIdent(vsf)
+	mod := sort.Interface(vsf)
 	for _, m := range modifiers {
 		mod = m(mod)
 	}

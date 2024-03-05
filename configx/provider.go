@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package configx
 
 import (
@@ -5,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"reflect"
@@ -13,28 +15,20 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
-
-	"github.com/sirupsen/logrus"
-
-	"github.com/ory/x/logrusx"
-	"github.com/ory/x/otelx"
-
-	"github.com/ory/x/jsonschemax"
-
-	"github.com/ory/jsonschema/v3"
-	"github.com/ory/x/watcherx"
-
 	"github.com/inhies/go-bytesize"
-	"github.com/knadh/koanf/providers/posflag"
-	"github.com/spf13/pflag"
-
-	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/json"
+	"github.com/knadh/koanf/providers/posflag"
+	"github.com/knadh/koanf/v2"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/pflag"
+
+	"github.com/ory/jsonschema/v3"
+	"github.com/ory/x/jsonschemax"
+	"github.com/ory/x/logrusx"
+	"github.com/ory/x/otelx"
+	"github.com/ory/x/watcherx"
 )
 
 type tuple struct {
@@ -42,15 +36,10 @@ type tuple struct {
 	Value interface{}
 }
 
-const tracingComponent = "github.com/ory/x/configx"
-
 type Provider struct {
 	l sync.RWMutex
 	*koanf.Koanf
 	immutables []string
-
-	originalContext context.Context
-	//cancelFork      context.CancelFunc
 
 	schema                   []byte
 	flags                    *pflag.FlagSet
@@ -58,12 +47,10 @@ type Provider struct {
 	onChanges                []func(watcherx.Event, error)
 	onValidationError        func(k *koanf.Koanf, err error)
 	excludeFieldsFromTracing []string
-	tracer                   *otelx.Tracer
 
 	forcedValues []tuple
 	baseValues   []tuple
 	files        []string
-	changeFeed   *KoanfMemory
 
 	skipValidation    bool
 	disableEnvLoading bool
@@ -91,6 +78,9 @@ func RegisterConfigFlag(flags *pflag.FlagSet, fallback []string) {
 // 2. Config files (yaml, yml, toml, json)
 // 3. Command line flags
 // 4. Environment variables
+//
+// There will also be file-watchers started for all config files. To cancel the
+// watchers, cancel the context.
 func New(ctx context.Context, schema []byte, modifiers ...OptionModifier) (*Provider, error) {
 	validator, err := getSchema(ctx, schema)
 	if err != nil {
@@ -98,10 +88,9 @@ func New(ctx context.Context, schema []byte, modifiers ...OptionModifier) (*Prov
 	}
 
 	l := logrus.New()
-	l.Out = ioutil.Discard
+	l.Out = io.Discard
 
 	p := &Provider{
-		originalContext:          context.Background(),
 		schema:                   schema,
 		validator:                validator,
 		onValidationError:        func(k *koanf.Koanf, err error) {},
@@ -114,7 +103,7 @@ func New(ctx context.Context, schema []byte, modifiers ...OptionModifier) (*Prov
 		m(p)
 	}
 
-	providers, err := p.createProviders(p.originalContext)
+	providers, err := p.createProviders(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -153,18 +142,19 @@ func (p *Provider) createProviders(ctx context.Context) (providers []koanf.Provi
 	}
 
 	p.logger.WithField("files", paths).Debug("Adding config files.")
+
+	c := make(watcherx.EventChannel)
+	go p.watchForFileChanges(ctx, c)
+
 	for _, path := range paths {
-		fp, err := NewKoanfFile(ctx, path)
+		fp, err := NewKoanfFile(path)
 		if err != nil {
 			return nil, err
 		}
 
-		c := make(watcherx.EventChannel)
-		if _, err := fp.WatchChannel(c); err != nil {
+		if _, err := fp.WatchChannel(ctx, c); err != nil {
 			return nil, err
 		}
-
-		go p.watchForFileChanges(c)
 
 		providers = append(providers, fp)
 	}
@@ -222,10 +212,7 @@ func (p *Provider) validate(k *koanf.Koanf) error {
 //
 // - https://github.com/knadh/koanf/issues/77
 // - https://github.com/knadh/koanf/pull/47
-func (p *Provider) newKoanf() (*koanf.Koanf, error) {
-	ctx, span := p.startSpan(p.originalContext, LoadSpanOpName)
-	defer span.End()
-
+func (p *Provider) newKoanf() (_ *koanf.Koanf, err error) {
 	k := koanf.New(Delimiter)
 
 	for _, provider := range p.providers {
@@ -249,50 +236,11 @@ func (p *Provider) newKoanf() (*koanf.Koanf, error) {
 		return nil, err
 	}
 
-	p.traceConfig(ctx, k, LoadSpanOpName)
 	return k, nil
 }
 
-// SetTracer sets the tracer.
-func (p *Provider) SetTracer(ctx context.Context, t *otelx.Tracer) {
-	p.tracer = t
-	p.traceConfig(ctx, p.Koanf, SnapshotSpanOpName)
-}
-
-func (p *Provider) startSpan(ctx context.Context, opName string) (context.Context, trace.Span) {
-	tracer := otel.Tracer("github.com/ory/x/configx")
-	if p.tracer != nil && p.tracer.Tracer() != nil {
-		tracer = p.tracer.Tracer()
-	}
-	return tracer.Start(ctx, opName)
-}
-
-func (p *Provider) traceConfig(ctx context.Context, k *koanf.Koanf, opName string) {
-	ctx, span := p.startSpan(ctx, opName)
-	defer span.End()
-
-	span.SetAttributes(attribute.String("component", tracingComponent))
-
-	fields := make([]attribute.KeyValue, 0, len(k.Keys()))
-	for _, key := range k.Keys() {
-		var redact bool
-		for _, e := range p.excludeFieldsFromTracing {
-			if strings.Contains(key, e) {
-				redact = true
-			}
-		}
-
-		if redact {
-			fields = append(fields, attribute.String(key, "[redacted]"))
-		} else {
-			// XXX: The issue here is, we can't guess what attribute type to
-			// use without trying every type supported in Koanf and checking for
-			// a zero value. Is fmt.Sprint the best way?
-			fields = append(fields, attribute.String(key, fmt.Sprint(k.Get(key))))
-		}
-	}
-
-	span.AddEvent("event.log", trace.WithAttributes(fields...))
+// SetTracer does nothing. DEPRECATED without replacement.
+func (p *Provider) SetTracer(_ context.Context, _ *otelx.Tracer) {
 }
 
 func (p *Provider) runOnChanges(e watcherx.Event, err error) {
@@ -328,14 +276,18 @@ func (p *Provider) reload(e watcherx.Event) {
 	// unlocks & runs changes in defer
 }
 
-func (p *Provider) watchForFileChanges(c watcherx.EventChannel) {
-	// Channel is closed automatically on ctx.Done() because of fp.WatchChannel()
-	for e := range c {
-		switch et := e.(type) {
-		case *watcherx.ErrorEvent:
-			p.runOnChanges(e, et)
-		default:
-			p.reload(e)
+func (p *Provider) watchForFileChanges(ctx context.Context, c watcherx.EventChannel) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case e := <-c:
+			switch et := e.(type) {
+			case *watcherx.ErrorEvent:
+				p.runOnChanges(e, et)
+			default:
+				p.reload(e)
+			}
 		}
 	}
 }
@@ -489,6 +441,19 @@ func (p *Provider) TracingConfig(serviceName string) *otelx.Config {
 					TraceIdRatio: p.Float64F("tracing.providers.jaeger.sampling.trace_id_ratio", 1),
 				},
 				LocalAgentAddress: p.String("tracing.providers.jaeger.local_agent_address"),
+			},
+			Zipkin: otelx.ZipkinConfig{
+				ServerURL: p.String("tracing.providers.zipkin.server_url"),
+				Sampling: otelx.ZipkinSampling{
+					SamplingRatio: p.Float64("tracing.providers.zipkin.sampling.sampling_ratio"),
+				},
+			},
+			OTLP: otelx.OTLPConfig{
+				ServerURL: p.String("tracing.providers.otlp.server_url"),
+				Insecure:  p.Bool("tracing.providers.otlp.insecure"),
+				Sampling: otelx.OTLPSampling{
+					SamplingRatio: p.Float64("tracing.providers.otlp.sampling.sampling_ratio"),
+				},
 			},
 		},
 	}

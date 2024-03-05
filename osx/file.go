@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package osx
 
 import (
@@ -5,6 +8,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
 
@@ -97,7 +101,7 @@ func WithoutResilientBase64Encoding() Option {
 	}
 }
 
-//	WithHTTPClient sets the HTTP client.
+// WithHTTPClient sets the HTTP client.
 func WithHTTPClient(hc *retryablehttp.Client) Option {
 	return func(o *options) {
 		o.hc = hc
@@ -120,7 +124,7 @@ func RestrictedReadFile(source string, opts ...Option) (bytes []byte, err error)
 // Using options, you can disable individual loaders. For example, the following will
 // return an error:
 //
-//		ReadFileFromAllSources("https://foo.bar/baz.txt", WithDisabledHTTPLoader())
+//	ReadFileFromAllSources("https://foo.bar/baz.txt", WithDisabledHTTPLoader())
 //
 // Possible formats are:
 //
@@ -153,6 +157,7 @@ func readFile(source string, o *options) (bytes []byte, err error) {
 			return nil, errors.New("file loader disabled")
 		}
 
+		//#nosec G304 -- false positive
 		bytes, err = os.ReadFile(source)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to read the file")
@@ -162,6 +167,7 @@ func readFile(source string, o *options) (bytes []byte, err error) {
 			return nil, errors.New("file loader disabled")
 		}
 
+		//#nosec G304 -- false positive
 		bytes, err = os.ReadFile(parsed.Host + parsed.Path)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to read the file")
@@ -186,7 +192,7 @@ func readFile(source string, o *options) (bytes []byte, err error) {
 		}
 
 		if o.disableResilientBase64Loader {
-			bytes, err = o.base64enc.DecodeString(parsed.Host + parsed.RawPath)
+			bytes, err = o.base64enc.DecodeString(strings.TrimPrefix(source, "base64://"))
 			if err != nil {
 				return nil, errors.Wrap(err, "unable to base64 decode the location")
 			}
@@ -199,7 +205,7 @@ func readFile(source string, o *options) (bytes []byte, err error) {
 			base64.RawURLEncoding,
 			base64.RawStdEncoding,
 		} {
-			bytes, err = enc.DecodeString(parsed.Host + parsed.RawPath)
+			bytes, err = enc.DecodeString(strings.TrimPrefix(source, "base64://"))
 			if err == nil {
 				return bytes, nil
 			}

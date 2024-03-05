@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package proxy
 
 import (
@@ -88,9 +91,10 @@ func ReplaceCookieDomainAndSecure(resp *http.Response, original, replacement str
 	cookies := resp.Cookies()
 	resp.Header.Del("Set-Cookie")
 	for _, co := range cookies {
-		if strings.EqualFold(co.Domain, original) {
-			co.Domain = replacement
-			co.Secure = secure
+		co.Domain = replacement
+		co.Secure = secure
+		if !secure {
+			co.SameSite = http.SameSiteLaxMode
 		}
 		resp.Header.Add("Set-Cookie", co.String())
 	}

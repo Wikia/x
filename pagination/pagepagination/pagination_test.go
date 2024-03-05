@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package pagepagination
 
 import (
@@ -94,6 +97,16 @@ func TestPaginationHeader(t *testing.T) {
 
 		assert.EqualValues(t, expect, r.Result().Header.Get("Link"))
 		assert.EqualValues(t, "5", r.Result().Header.Get("X-Total-Count"))
+	})
+
+	t.Run("Create only first if the limits provided equals the number of clients found", func(t *testing.T) {
+		r := httptest.NewRecorder()
+		PaginationHeader(r, u, 50, 0, 50)
+
+		expect := "<http://example.com?page=0&per_page=50>; rel=\"first\""
+
+		assert.EqualValues(t, expect, r.Result().Header.Get("Link"))
+		assert.EqualValues(t, "50", r.Result().Header.Get("X-Total-Count"))
 	})
 }
 

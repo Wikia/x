@@ -1,8 +1,10 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package jsonnetx
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/bmatcuk/doublestar/v2"
@@ -39,10 +41,11 @@ var LintCommand = &cobra.Command{
 					fmt.Printf("Processing file: %s\n", file)
 				}
 
-				content, err := ioutil.ReadFile(file)
+				//#nosec G304 -- false positive
+				content, err := os.ReadFile(file)
 				cmdx.Must(err, `Unable to read file "%s" because: %s`, file, err)
 
-				if linter.LintSnippet(jsonnet.MakeVM(), os.Stderr, file, string(content)) {
+				if linter.LintSnippet(jsonnet.MakeVM(), os.Stderr, []linter.Snippet{{FileName: file, Code: string(content)}}) {
 					_, _ = fmt.Fprintf(os.Stderr, "Linter found issues.")
 					os.Exit(1)
 				}

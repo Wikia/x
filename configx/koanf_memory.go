@@ -1,12 +1,13 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package configx
 
 import (
 	"context"
 
-	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/json"
-
-	"github.com/ory/x/watcherx"
+	"github.com/knadh/koanf/v2"
 
 	"github.com/pkg/errors"
 
@@ -19,7 +20,6 @@ type KoanfMemory struct {
 
 	ctx    context.Context
 	parser koanf.Parser
-	c      watcherx.EventChannel
 }
 
 // NewKoanfMemory returns a file provider.

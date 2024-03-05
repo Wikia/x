@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package proxy
 
 import (
@@ -138,49 +141,9 @@ func TestRewrites(t *testing.T) {
 
 			for _, co := range resp.Cookies() {
 				assert.Equal(t, c.CookieDomain, co.Domain)
+				assert.Equal(t, false, co.Secure)
+				assert.Equal(t, http.SameSiteLaxMode, co.SameSite)
 			}
-		})
-
-		t.Run("case=do not replace location and cookies of unrelated host", func(t *testing.T) {
-			upstreamHost := "some-project-1234.oryapis.com"
-
-			c := &HostConfig{
-				CookieDomain:   "example.com",
-				TargetHost:     upstreamHost,
-				UpstreamHost:   upstreamHost,
-				PathPrefix:     "/foo",
-				UpstreamScheme: "https",
-				originalHost:   "example.com",
-				originalScheme: "http",
-			}
-			cookie := http.Cookie{
-				Name:   "cookie.example",
-				Value:  "1234",
-				Domain: "unrelated.com",
-			}
-			cookie.Raw = cookie.String()
-			location := url.URL{
-				Scheme: "file",
-				Host:   "unrelated.com",
-				Path:   "/bar",
-			}
-
-			resp := newOKResp(cookie.String(), location.String())
-
-			require.NoError(t, headerResponseRewrite(resp, c))
-
-			loc, err := resp.Location()
-			require.NoError(t, err)
-
-			// Location should not be rewritten
-			assert.Equal(t, location.Host, loc.Host)
-			assert.Equal(t, location.Scheme, loc.Scheme)
-			assert.Equal(t, location.Path, loc.Path)
-
-			// Cookies should not be rewritten
-			cs := resp.Cookies()
-			require.Len(t, cs, 1)
-			assert.Equal(t, &cookie, cs[0])
 		})
 
 		t.Run("case=replace cookie", func(t *testing.T) {
@@ -366,6 +329,7 @@ func TestHelpers(t *testing.T) {
 			assert.Equal(t, "this is compressed", string(rawBody))
 
 			_, err = writer.Write([]byte("should compress"))
+			require.NoError(t, err)
 			assert.NotEqual(t, "should compress", writer.buf.String())
 
 			r, err := gzip.NewReader(&writer.buf)

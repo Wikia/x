@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package errorsx
 
 import "github.com/pkg/errors"
@@ -6,9 +9,9 @@ import "github.com/pkg/errors"
 // An error value has a cause if it implements the following
 // interface:
 //
-//     type causer interface {
-//            Cause() error
-//     }
+//	type causer interface {
+//	       Cause() error
+//	}
 //
 // If the error does not implement Cause, the original error will
 // be returned. If the error is nil, nil will be returned without further

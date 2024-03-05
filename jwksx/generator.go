@@ -1,22 +1,5 @@
-/*
- * Copyright © 2015-2018 Aeneas Rekkas <aeneas+oss@aeneas.io>
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * @author		Aeneas Rekkas <aeneas+oss@aeneas.io>
- * @copyright 	2015-2018 Aeneas Rekkas <aeneas+oss@aeneas.io>
- * @license 	Apache-2.0
- */
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
 
 package jwksx
 
@@ -31,7 +14,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/google/uuid"
+	"github.com/gofrs/uuid"
 	"github.com/square/go-jose/v3"
 	"golang.org/x/crypto/ed25519"
 )
@@ -39,7 +22,7 @@ import (
 // GenerateSigningKeys generates a JSON Web Key Set for signing.
 func GenerateSigningKeys(id, alg string, bits int) (*jose.JSONWebKeySet, error) {
 	if id == "" {
-		id = uuid.New().String()
+		id = uuid.Must(uuid.NewV4()).String()
 	}
 
 	key, err := generate(jose.SignatureAlgorithm(alg), bits)

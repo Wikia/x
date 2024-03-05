@@ -1,6 +1,11 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package cmdx
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
@@ -32,4 +37,13 @@ func RangeArgs(cmd *cobra.Command, args []string, r []int) {
 	Fatalf(`%s
 
 Expected exact %v command line arguments but got %d.`, cmd.UsageString(), r, len(args))
+}
+
+// ZeroOrTwoArgs requires either no or 2 arguments.
+func ZeroOrTwoArgs(cmd *cobra.Command, args []string) error {
+	// zero or exactly two args
+	if len(args) != 0 && len(args) != 2 {
+		return fmt.Errorf("expected zero or two args, got %d: %+v", len(args), args)
+	}
+	return nil
 }

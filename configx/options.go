@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package configx
 
 import (
@@ -12,7 +15,7 @@ import (
 	"github.com/ory/jsonschema/v3"
 	"github.com/ory/x/logrusx"
 
-	"github.com/knadh/koanf"
+	"github.com/knadh/koanf/v2"
 
 	"github.com/ory/x/watcherx"
 )
@@ -23,7 +26,6 @@ type (
 
 func WithContext(ctx context.Context) OptionModifier {
 	return func(p *Provider) {
-		p.originalContext = ctx
 		for _, o := range ConfigOptionsFromContext(ctx) {
 			o(p)
 		}

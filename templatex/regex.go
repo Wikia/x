@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 // Package compiler offers a regexp compiler which compiles regex templates to regexp.Regexp
 //
 //  reg, err := compiler.CompileRegex("foo:bar.baz:<[0-9]{2,10}>", '<', '>')
@@ -84,9 +87,9 @@ func delimiterIndices(s string, delimiterStart, delimiterEnd byte) ([]int, error
 // You can define your own delimiters. It is e.g. common to use curly braces {} but I recommend using characters
 // which have no special meaning in Regex, e.g.: <, >
 //
-//  reg, err := templatex.CompileRegex("foo:bar.baz:<[0-9]{2,10}>", '<', '>')
-//  // if err != nil ...
-//  reg.MatchString("foo:bar.baz:123")
+//	reg, err := templatex.CompileRegex("foo:bar.baz:<[0-9]{2,10}>", '<', '>')
+//	// if err != nil ...
+//	reg.MatchString("foo:bar.baz:123")
 func CompileRegex(tpl string, delimiterStart, delimiterEnd byte) (*regexp.Regexp, error) {
 	// Check if it is well-formed.
 	idxs, errBraces := delimiterIndices(tpl, delimiterStart, delimiterEnd)

@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package httpx
 
 import (
@@ -5,7 +8,6 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 )
@@ -45,7 +47,7 @@ func (c *CompressionRequestReader) ServeHTTP(w http.ResponseWriter, r *http.Requ
 				return
 			}
 
-			r.Body = ioutil.NopCloser(&b)
+			r.Body = io.NopCloser(&b)
 		case "identity":
 			fallthrough
 		case "":

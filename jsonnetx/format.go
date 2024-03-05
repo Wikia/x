@@ -1,8 +1,10 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package jsonnetx
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/bmatcuk/doublestar/v2"
@@ -40,14 +42,15 @@ Use -w or --write to write output back to files instead of stdout.
 					fmt.Printf("Processing file: %s\n", file)
 				}
 
-				content, err := ioutil.ReadFile(file)
+				//#nosec G304 -- false positive
+				content, err := os.ReadFile(file)
 				cmdx.Must(err, `Unable to read file "%s" because: %s`, file, err)
 
 				output, err := formatter.Format(file, string(content), formatter.DefaultOptions())
 				cmdx.Must(err, `JSONNet file "%s" could not be formatted: %s`, file, err)
 
 				if shouldWrite {
-					err := ioutil.WriteFile(file, []byte(output), 0644) // #nosec
+					err := os.WriteFile(file, []byte(output), 0644) // #nosec
 					cmdx.Must(err, `Could not write to file "%s" because: %s`, file, err)
 				} else {
 					fmt.Println(output)

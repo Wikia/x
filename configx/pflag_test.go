@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package configx
 
 import (
@@ -22,7 +25,9 @@ func TestPFlagProvider(t *testing.T) {
   }
 }
 `
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	s, err := jsonschema.CompileString(ctx, "", schema)
 	require.NoError(t, err)
 

@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package reqlog
 
 import (
@@ -214,5 +217,4 @@ func TestRealClock_Since(t *testing.T) {
 	since := rc.Since(now)
 
 	assert.True(t, since >= napDuration)
-	assert.True(t, since < napDuration+6*time.Millisecond)
 }

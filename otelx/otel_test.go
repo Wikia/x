@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package otelx
 
 import (
@@ -6,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/instana/testify/assert"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -50,7 +52,7 @@ func decodeResponseBody(t *testing.T, r *http.Request) []byte {
 	default:
 		reader = r.Body
 	}
-	respBody, err := ioutil.ReadAll(reader)
+	respBody, err := io.ReadAll(reader)
 	require.NoError(t, err)
 	require.NoError(t, reader.Close())
 	return respBody

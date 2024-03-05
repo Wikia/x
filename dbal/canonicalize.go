@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package dbal
 
 import "github.com/ory/x/cmdx"
@@ -21,7 +24,7 @@ func Canonicalize(database string) string {
 	switch database {
 	case "mysql":
 		return DriverMySQL
-	case "pgx", "pq", "postgres":
+	case "pgx", "pq", "postgres", "postgresql":
 		return DriverPostgreSQL
 	case "cockroach":
 		return DriverCockroachDB

@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package otelx
 
 import (
@@ -7,22 +10,14 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-const tracingComponent = "github.com/ory/x/otelx"
-
 func isHealthFilter(r *http.Request) bool {
 	path := r.URL.Path
-	if strings.HasPrefix(path, "/health/") {
-		return false
-	}
-	return true
+	return !strings.HasPrefix(path, "/health/")
 }
 
 func isAdminHealthFilter(r *http.Request) bool {
 	path := r.URL.Path
-	if strings.HasPrefix(path, "/admin/health/") {
-		return false
-	}
-	return true
+	return !strings.HasPrefix(path, "/admin/health/")
 }
 
 func filterOpts() []otelhttp.Option {
@@ -37,6 +32,20 @@ func filterOpts() []otelhttp.Option {
 	return opts
 }
 
-func NewHandler(handler http.Handler, operation string) http.Handler {
-	return otelhttp.NewHandler(handler, operation, filterOpts()...)
+// NewHandler returns a wrapped otelhttp.NewHandler with our request filters.
+func NewHandler(handler http.Handler, operation string, opts ...otelhttp.Option) http.Handler {
+	opts = append(filterOpts(), opts...)
+	return otelhttp.NewHandler(handler, operation, opts...)
+}
+
+// TraceHandler wraps otelx.NewHandler, passing the URL path as the span name.
+func TraceHandler(h http.Handler, opts ...otelhttp.Option) http.Handler {
+	// Use a span formatter to set the span name to the URL path, rather than passing in the operation to NewHandler.
+	// This allows us to use the same handler for multiple routes.
+	middlewareOpts := []otelhttp.Option{
+		otelhttp.WithSpanNameFormatter(func(operation string, r *http.Request) string {
+			return r.URL.Path
+		}),
+	}
+	return NewHandler(h, "", append(middlewareOpts, opts...)...)
 }

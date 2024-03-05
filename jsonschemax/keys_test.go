@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package jsonschemax
 
 import (
@@ -5,7 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/ory/x/snapshotx"
@@ -58,7 +61,7 @@ const recursiveSchema = `{
 }`
 
 func readFile(t *testing.T, path string) string {
-	schema, err := ioutil.ReadFile(path)
+	schema, err := os.ReadFile(path)
 	require.NoError(t, err)
 	return string(schema)
 }

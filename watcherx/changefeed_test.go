@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package watcherx
 
 import (
@@ -8,7 +11,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/cockroach-go/v2/testserver"
-	"github.com/google/uuid"
+	"github.com/gofrs/uuid"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,21 +20,21 @@ import (
 	"github.com/ory/x/logrusx"
 )
 
-// Run this test with
-//
-// docker run --name cloud_kratos_test_database_cockroach -p 3446:26257 -d cockroachdb/cockroach:v21.1.0 start-single-node --insecure
-// export TEST_DATABASE_COCKROACHDB="cockroach://root@127.0.0.1:3446/defaultdb?sslmode=disable"
-func TestChangeFeed(t *testing.T) {
-	tableName := "t_" + strings.ReplaceAll(uuid.New().String(), "-", "")
-	tableName = "asdfuhasdfuih"
+func TestWatchChangeFeed(t *testing.T) {
+	tableName := "t_" + strings.ReplaceAll(uuid.Must(uuid.NewV4()).String(), "-", "")
 
-	var watcherCount = 1
-	var itemCount int = 5
+	const (
+		watcherCount = 1
+		itemCount    = 5
+	)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	l := logrusx.New("", "")
 	db, err := testserver.NewTestServer()
 	require.NoError(t, err)
+	t.Cleanup(db.Stop)
 
 	dsnp := db.PGURL()
 	dsnp.Scheme = "cockroach"
@@ -39,15 +42,15 @@ func TestChangeFeed(t *testing.T) {
 
 	cx, err := NewChangeFeedConnection(ctx, l, dsn)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = cx.Close()
+	})
 
 	_, err = cx.Exec("CREATE TABLE IF NOT EXISTS " + tableName + " (id UUID PRIMARY KEY, value VARCHAR(64))")
 	require.NoError(t, err)
 
 	time.Sleep(time.Second)
 	start := time.Now()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 
 	ctx, cancel = context.WithTimeout(ctx, time.Second*60)
 	t.Cleanup(cancel)
@@ -57,6 +60,7 @@ func TestChangeFeed(t *testing.T) {
 	worker := func() {
 		c, err := NewChangeFeedConnection(ctx, l, dsn)
 		require.NoError(t, err)
+		defer c.Close()
 
 		_, err = WatchChangeFeed(ctx, c, tableName, events, time.Now().Add(time.Minute))
 		require.Error(t, err, "not able to watch changes from the future")
@@ -66,7 +70,7 @@ func TestChangeFeed(t *testing.T) {
 	}
 
 	for i := 0; i < watcherCount; i++ {
-		go worker()
+		worker()
 	}
 
 	rowsToCreate := make([]struct {
@@ -77,7 +81,7 @@ func TestChangeFeed(t *testing.T) {
 	go func() {
 		for k := range rowsToCreate {
 			c := rowsToCreate[k]
-			c.id = uuid.New().String()
+			c.id = uuid.Must(uuid.NewV4()).String()
 			c.value = c.id[:8]
 
 			rowsToCreate[k] = c
@@ -98,14 +102,15 @@ func TestChangeFeed(t *testing.T) {
 
 	expectedEventCount := watcherCount * itemCount * 3 // 3 operations: insert, update, delete
 	var received []Event
-	done := false
-	for !done {
+
+receiveLoop:
+	for {
 		select {
 		case <-time.After(time.Second*time.Duration(expectedEventCount) + time.Second*5):
-			done = true
+			break receiveLoop
 		case row, ok := <-events:
 			if !ok {
-				done = true
+				break receiveLoop
 			} else {
 				t.Logf("%+v", row)
 				received = append(received, row)
@@ -114,7 +119,6 @@ func TestChangeFeed(t *testing.T) {
 	}
 
 	require.Len(t, received, expectedEventCount)
-
 	// We expect
 	// - numOfItems of INSERT (value is id)
 	// - numOfItems of UPDATE (value is first 8 chars)
@@ -140,4 +144,86 @@ func TestChangeFeed(t *testing.T) {
 		assert.IsType(t, &RemoveEvent{}, deleted, expectedMessage, expectedMessage)
 		assert.Equal(t, expectedPk, deleted.Source(), expectedMessage)
 	}
+}
+
+func send(ctx context.Context, ev chan<- Event, events []Event) {
+	defer close(ev)
+	for _, e := range events {
+		select {
+		case <-ctx.Done():
+			return
+		case ev <- e:
+		}
+	}
+}
+
+func recv(ctx context.Context, ev <-chan Event) (events []Event) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case e, ok := <-ev:
+			if !ok {
+				return
+			}
+			events = append(events, e)
+		}
+	}
+}
+
+func Test_deduplicate(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	events := make([]Event, 3)
+	for i := range events {
+		events[i] = &ErrorEvent{
+			source: source(fmt.Sprintf("Event %d", i)),
+		}
+	}
+
+	t.Run("case=proxies", func(t *testing.T) {
+		childCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		eventCh := make(EventChannel)
+		deduplicatedEvents := make(EventChannel)
+
+		deduplicate(childCtx, eventCh, deduplicatedEvents, len(events))
+		go send(childCtx, eventCh, events)
+		received := recv(ctx, deduplicatedEvents)
+
+		assert.Equal(t, events, received)
+	})
+
+	t.Run("case=deduplicates", func(t *testing.T) {
+		childCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		eventCh := make(EventChannel)
+		deduplicatedEvents := make(EventChannel)
+
+		duplicateEvents := append(events, events...)
+
+		deduplicate(childCtx, eventCh, deduplicatedEvents, len(events))
+		go send(childCtx, eventCh, duplicateEvents)
+		received := recv(ctx, deduplicatedEvents)
+
+		assert.Equal(t, events, received)
+	})
+
+	t.Run("case=does not deduplicate past capacity", func(t *testing.T) {
+		childCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		eventCh := make(EventChannel)
+		deduplicatedEvents := make(EventChannel)
+
+		duplicateEvents := append([]Event{events[0]}, events...)
+		duplicateEvents = append(duplicateEvents, events[0])
+		expectedEvents := append(events, events[0])
+
+		deduplicate(childCtx, eventCh, deduplicatedEvents, len(events)-1)
+		go send(childCtx, eventCh, duplicateEvents)
+		received := recv(ctx, deduplicatedEvents)
+
+		assert.Equal(t, expectedEvents, received)
+	})
 }

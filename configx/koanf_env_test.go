@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package configx
 
 import (
@@ -14,9 +17,12 @@ import (
 var kratosSchema []byte
 
 func TestNewKoanfEnvCache(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	ref, compiler, err := newCompiler(kratosSchema)
 	require.NoError(t, err)
-	schema, err := compiler.Compile(context.Background(), ref)
+	schema, err := compiler.Compile(ctx, ref)
 	require.NoError(t, err)
 
 	c := *schemaPathCacheConfig

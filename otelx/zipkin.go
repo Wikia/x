@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package otelx
 
 import (
@@ -9,10 +12,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func SetupZipkin(t *Tracer, tracerName string) (trace.Tracer, error) {
-	exp, err := zipkin.New(
-		t.Config.Providers.Zipkin.ServerURL,
-	)
+func SetupZipkin(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) {
+	exp, err := zipkin.New(c.Providers.Zipkin.ServerURL)
 	if err != nil {
 		return nil, err
 	}
@@ -21,10 +22,10 @@ func SetupZipkin(t *Tracer, tracerName string) (trace.Tracer, error) {
 		sdktrace.WithBatcher(exp),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(t.Config.ServiceName),
+			semconv.ServiceNameKey.String(c.ServiceName),
 		)),
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(
-			t.Config.Providers.Zipkin.Sampling.SamplingRatio,
+			c.Providers.Zipkin.Sampling.SamplingRatio,
 		))),
 	}
 

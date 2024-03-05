@@ -1,7 +1,10 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package pkgerx
 
 import (
-	"io/ioutil"
+	"io"
 
 	"github.com/ory/x/ioutilx"
 
@@ -13,7 +16,7 @@ func MustRead(f pkging.File, err error) []byte {
 	if err != nil {
 		panic(err)
 	}
-	defer f.Close()
+	defer (func() { _ = f.Close() })()
 	return ioutilx.MustReadAll(f)
 }
 
@@ -22,6 +25,6 @@ func Read(f pkging.File, err error) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	return ioutil.ReadAll(f)
+	defer (func() { _ = f.Close() })()
+	return io.ReadAll(f)
 }

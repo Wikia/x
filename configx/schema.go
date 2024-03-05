@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package configx
 
 import (
@@ -7,7 +10,7 @@ import (
 	"github.com/ory/x/logrusx"
 	"github.com/ory/x/otelx"
 
-	"github.com/google/uuid"
+	"github.com/gofrs/uuid"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 
@@ -17,7 +20,7 @@ import (
 func newCompiler(schema []byte) (string, *jsonschema.Compiler, error) {
 	id := gjson.GetBytes(schema, "$id").String()
 	if id == "" {
-		id = fmt.Sprintf("%s.json", uuid.New().String())
+		id = fmt.Sprintf("%s.json", uuid.Must(uuid.NewV4()).String())
 	}
 
 	compiler := jsonschema.NewCompiler()

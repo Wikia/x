@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package jsonx
 
 import (
@@ -54,10 +57,7 @@ func embed(parsed gjson.Result, parents []string, result *json.RawMessage, o *op
 	if parsed.IsObject() {
 		parsed.ForEach(func(k, v gjson.Result) bool {
 			err = embed(v, append(parents, strings.ReplaceAll(k.String(), ".", "\\.")), result, o)
-			if err != nil {
-				return false
-			}
-			return true
+			return err == nil
 		})
 		if err != nil {
 			return err

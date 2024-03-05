@@ -1,3 +1,6 @@
+// Copyright © 2023 Ory Corp
+// SPDX-License-Identifier: Apache-2.0
+
 package popx_test
 
 import (
@@ -5,7 +8,6 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -25,7 +27,7 @@ import (
 var transactionalMigrations embed.FS
 
 func TestMigratorUpgrading(t *testing.T) {
-	litedb, err := ioutil.TempFile(os.TempDir(), "sqlite-*")
+	litedb, err := os.CreateTemp("", "sqlite-*")
 	require.NoError(t, err)
 	require.NoError(t, litedb.Close())
 
@@ -132,7 +134,7 @@ func filterMySQL(t *testing.T, name string, status string) string {
 }
 
 func TestMigratorUpgradingFromStart(t *testing.T) {
-	litedb, err := ioutil.TempFile(os.TempDir(), "sqlite-*")
+	litedb, err := os.CreateTemp("", "sqlite-*")
 	require.NoError(t, err)
 	require.NoError(t, litedb.Close())
 
@@ -172,7 +174,7 @@ func TestMigratorUpgradingFromStart(t *testing.T) {
 }
 
 func TestMigratorSanitizeMigrationTableName(t *testing.T) {
-	litedb, err := ioutil.TempFile(os.TempDir(), "sqlite-*")
+	litedb, err := os.CreateTemp("", "sqlite-*")
 	require.NoError(t, err)
 	require.NoError(t, litedb.Close())
 
