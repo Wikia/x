@@ -39,7 +39,7 @@ type tuple struct {
 type Provider struct {
 	l sync.RWMutex
 	*koanf.Koanf
-	immutables []string
+	immutables, exceptImmutables []string
 
 	schema                   []byte
 	flags                    *pflag.FlagSet
@@ -249,6 +249,18 @@ func (p *Provider) runOnChanges(e watcherx.Event, err error) {
 	}
 }
 
+func deleteOtherKeys(k *koanf.Koanf, keys []string) {
+outer:
+	for _, key := range k.Keys() {
+		for _, ik := range keys {
+			if key == ik {
+				continue outer
+			}
+		}
+		k.Delete(key)
+	}
+}
+
 func (p *Provider) reload(e watcherx.Event) {
 	p.l.Lock()
 
@@ -264,10 +276,20 @@ func (p *Provider) reload(e watcherx.Event) {
 		return // unlocks & runs changes in defer
 	}
 
-	for _, key := range p.immutables {
-		if !reflect.DeepEqual(p.Koanf.Get(key), nk.Get(key)) {
-			err = NewImmutableError(key, fmt.Sprintf("%v", p.Koanf.Get(key)), fmt.Sprintf("%v", nk.Get(key)))
-			return // unlocks & runs changes in defer
+	oldImmutables, newImmutables := p.Koanf.Copy(), nk.Copy()
+	deleteOtherKeys(oldImmutables, p.immutables)
+	deleteOtherKeys(newImmutables, p.immutables)
+
+	for _, key := range p.exceptImmutables {
+		oldImmutables.Delete(key)
+		newImmutables.Delete(key)
+	}
+	if !reflect.DeepEqual(oldImmutables.Raw(), newImmutables.Raw()) {
+		for _, key := range p.immutables {
+			if !reflect.DeepEqual(oldImmutables.Get(key), newImmutables.Get(key)) {
+				err = NewImmutableError(key, fmt.Sprintf("%v", p.Koanf.Get(key)), fmt.Sprintf("%v", nk.Get(key)))
+				return // unlocks & runs changes in defer
+			}
 		}
 	}
 
@@ -290,6 +312,33 @@ func (p *Provider) watchForFileChanges(ctx context.Context, c watcherx.EventChan
 			}
 		}
 	}
+}
+
+// DirtyPatch patches individual config keys without reloading the full config
+//
+// WARNING! This method is only useful to override existing keys in string or number
+// format. DO NOT use this method to override arrays, maps, or other complex types.
+//
+// This method DOES NOT validate the config against the config JSON schema. If you
+// need to validate the config, use the Set method instead.
+//
+// This method can not be used to remove keys from the config as that is not
+// possible without reloading the full config.
+func (p *Provider) DirtyPatch(key string, value any) error {
+	p.l.Lock()
+	defer p.l.Unlock()
+
+	t := tuple{Key: key, Value: value}
+	kc := NewKoanfConfmap([]tuple{t})
+
+	p.forcedValues = append(p.forcedValues, t)
+	p.providers = append(p.providers, kc)
+
+	if err := p.Koanf.Load(kc, nil, []koanf.Option{}...); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *Provider) Set(key string, value interface{}) error {
@@ -432,8 +481,9 @@ func (p *Provider) CORS(prefix string, defaults cors.Options) (cors.Options, boo
 
 func (p *Provider) TracingConfig(serviceName string) *otelx.Config {
 	return &otelx.Config{
-		ServiceName: p.StringF("tracing.service_name", serviceName),
-		Provider:    p.String("tracing.provider"),
+		ServiceName:           p.StringF("tracing.service_name", serviceName),
+		DeploymentEnvironment: p.StringF("tracing.deployment_environment", ""),
+		Provider:              p.String("tracing.provider"),
 		Providers: otelx.ProvidersConfig{
 			Jaeger: otelx.JaegerConfig{
 				Sampling: otelx.JaegerSampling{
@@ -454,6 +504,7 @@ func (p *Provider) TracingConfig(serviceName string) *otelx.Config {
 				Sampling: otelx.OTLPSampling{
 					SamplingRatio: p.Float64("tracing.providers.otlp.sampling.sampling_ratio"),
 				},
+				AuthorizationHeader: p.String("tracing.providers.otlp.authorization_header"),
 			},
 		},
 	}

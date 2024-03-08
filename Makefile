@@ -16,7 +16,7 @@ $(foreach dep, $(GO_DEPENDENCIES), $(eval $(call make-go-dependency, $(dep))))
 $(call make-lint-dependency)
 
 .bin/ory: Makefile
-	curl https://raw.githubusercontent.com/ory/meta/master/install.sh | bash -s -- -b .bin ory v0.1.48
+	curl https://raw.githubusercontent.com/ory/meta/master/install.sh | bash -s -- -b .bin ory v0.2.2
 	touch .bin/ory
 
 .PHONY: format
@@ -32,7 +32,7 @@ licenses: .bin/licenses node_modules  # checks open-source licenses
 	GOBIN=$(shell pwd)/.bin go install golang.org/x/tools/cmd/goimports@latest
 
 .bin/golangci-lint: Makefile
-	bash <(curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh) -d -b .bin v1.46.2
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b .bin v1.55.2
 
 .bin/licenses: Makefile
 	curl https://raw.githubusercontent.com/ory/ci/master/licenses/install | sh
@@ -56,7 +56,7 @@ resetdb:
 
 .PHONY: lint
 lint: .bin/golangci-lint
-	GO111MODULE=on golangci-lint run -v ./...
+	GO111MODULE=on .bin/golangci-lint run -v ./...
 
 .PHONY: migrations-render
 migrations-render: .bin/ory

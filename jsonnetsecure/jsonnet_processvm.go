@@ -15,6 +15,10 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/ory/x/otelx"
 )
 
 func NewProcessVM(opts *vmOptions) VM {
@@ -25,11 +29,18 @@ func NewProcessVM(opts *vmOptions) VM {
 	}
 }
 
-func (p *ProcessVM) EvaluateAnonymousSnippet(filename string, snippet string) (string, error) {
+func (p *ProcessVM) EvaluateAnonymousSnippet(filename string, snippet string) (_ string, err error) {
+	tracer := trace.SpanFromContext(p.ctx).TracerProvider().Tracer("")
+	ctx, span := tracer.Start(p.ctx, "jsonnetsecure.ProcessVM.EvaluateAnonymousSnippet", trace.WithAttributes(attribute.String("filename", filename)))
+	defer otelx.End(span, &err)
+
 	// We retry the process creation, because it sometimes times out.
 	const processVMTimeout = 1 * time.Second
-	return backoff.RetryWithData(func() (string, error) {
-		ctx, cancel := context.WithTimeout(p.ctx, processVMTimeout)
+	return backoff.RetryWithData(func() (_ string, err error) {
+		ctx, span := tracer.Start(ctx, "jsonnetsecure.ProcessVM.EvaluateAnonymousSnippet.run")
+		defer otelx.End(span, &err)
+
+		ctx, cancel := context.WithTimeout(ctx, processVMTimeout)
 		defer cancel()
 
 		var (
@@ -49,7 +60,7 @@ func (p *ProcessVM) EvaluateAnonymousSnippet(filename string, snippet string) (s
 		cmd.Stderr = &stderr
 		cmd.Env = []string{"GOMAXPROCS=1"}
 
-		err := cmd.Run()
+		err = cmd.Run()
 		if stderr.Len() > 0 {
 			// If the process wrote to stderr, this means it started and we won't retry.
 			return "", backoff.Permanent(fmt.Errorf("jsonnetsecure: unexpected output on stderr: %q", stderr.String()))
@@ -59,7 +70,7 @@ func (p *ProcessVM) EvaluateAnonymousSnippet(filename string, snippet string) (s
 		}
 
 		return stdout.String(), nil
-	}, backoff.WithContext(backoff.NewExponentialBackOff(), p.ctx))
+	}, backoff.WithContext(backoff.NewExponentialBackOff(), ctx))
 }
 
 func (p *ProcessVM) ExtCode(key string, val string) {
@@ -81,6 +92,11 @@ func (p *ProcessVM) TLAVar(key string, val string) {
 func (pp *processParameters) EncodeTo(w io.Writer) error {
 	return json.NewEncoder(w).Encode(pp)
 }
+
 func (pp *processParameters) DecodeFrom(r io.Reader) error {
 	return json.NewDecoder(r).Decode(pp)
+}
+
+func (pp *processParameters) Decode(d []byte) error {
+	return json.Unmarshal(d, pp)
 }

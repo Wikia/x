@@ -42,6 +42,7 @@ type (
 		jsonnetBinaryPath string
 		args              []string
 		ctx               context.Context
+		pool              *pool
 	}
 
 	Option func(o *vmOptions)
@@ -52,6 +53,13 @@ func newVMOptions() *vmOptions {
 	return &vmOptions{
 		jsonnetBinaryPath: jsonnetBinaryPath,
 		ctx:               context.Background(),
+	}
+}
+
+func WithProcessPool(p Pool) Option {
+	return func(o *vmOptions) {
+		pool, _ := p.(*pool)
+		o.pool = pool
 	}
 }
 
@@ -80,9 +88,10 @@ func MakeSecureVM(opts ...Option) VM {
 		o(options)
 	}
 
-	if options.useProcessVM {
-		vm := NewProcessVM(options)
-		return vm
+	if options.pool != nil {
+		return NewProcessPoolVM(options)
+	} else if options.useProcessVM {
+		return NewProcessVM(options)
 	} else {
 		vm := jsonnet.MakeVM()
 		vm.Importer(new(ErrorImporter))
@@ -111,7 +120,7 @@ func JsonnetTestBinary(t testing.TB) string {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil || stderr.Len() != 0 {
-		t.Fatalf("building the Go binary returned error: %v\n%s", err, string(stderr.String()))
+		t.Fatalf("building the Go binary returned error: %v\n%s", err, stderr.String())
 	}
 
 	return outPath
