@@ -4,13 +4,17 @@
 package httpx
 
 import (
+	"context"
 	"io"
 	"log"
 	"net/http"
+	"net/http/httptrace"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/oauth2"
 
 	"github.com/hashicorp/go-retryablehttp"
 
@@ -19,12 +23,15 @@ import (
 
 type resilientOptions struct {
 	c                    *http.Client
+	oauthConfig          *oauth2.Config
+	oauthToken           *oauth2.Token
 	l                    interface{}
 	retryWaitMin         time.Duration
 	retryWaitMax         time.Duration
 	retryMax             int
 	noInternalIPs        bool
 	internalIPExceptions []string
+	ipV6                 bool
 	tracer               trace.Tracer
 }
 
@@ -36,18 +43,12 @@ func newResilientOptions() *resilientOptions {
 		retryWaitMax: 30 * time.Second,
 		retryMax:     4,
 		l:            log.New(io.Discard, "", log.LstdFlags),
+		ipV6:         true,
 	}
 }
 
 // ResilientOptions is a set of options for the ResilientClient.
 type ResilientOptions func(o *resilientOptions)
-
-// ResilientClientWithClient sets the underlying http client to use.
-func ResilientClientWithClient(c *http.Client) ResilientOptions {
-	return func(o *resilientOptions) {
-		o.c = c
-	}
-}
 
 // ResilientClientWithTracer wraps the http clients transport with a tracing instrumentation
 func ResilientClientWithTracer(tracer trace.Tracer) ResilientOptions {
@@ -98,11 +99,17 @@ func ResilientClientDisallowInternalIPs() ResilientOptions {
 	}
 }
 
-// ResilientClientAllowInternalIPRequestsTo allows requests to the exact matching URLs even
+// ResilientClientAllowInternalIPRequestsTo allows requests to the glob-matching URLs even
 // if they are internal IPs.
-func ResilientClientAllowInternalIPRequestsTo(urls ...string) ResilientOptions {
+func ResilientClientAllowInternalIPRequestsTo(urlGlobs ...string) ResilientOptions {
 	return func(o *resilientOptions) {
-		o.internalIPExceptions = urls
+		o.internalIPExceptions = urlGlobs
+	}
+}
+
+func ResilientClientNoIPv6() ResilientOptions {
+	return func(o *resilientOptions) {
+		o.ipV6 = false
 	}
 }
 
@@ -114,23 +121,53 @@ func NewResilientClient(opts ...ResilientOptions) *retryablehttp.Client {
 	}
 
 	if o.noInternalIPs {
-		o.c.Transport = &NoInternalIPRoundTripper{
-			RoundTripper:         o.c.Transport,
+		o.c.Transport = &noInternalIPRoundTripper{
+			onWhitelist:          ifelse(o.ipV6, allowInternalAllowIPv6, allowInternalProhibitIPv6),
+			notOnWhitelist:       ifelse(o.ipV6, prohibitInternalAllowIPv6, prohibitInternalProhibitIPv6),
 			internalIPExceptions: o.internalIPExceptions,
 		}
+	} else {
+		o.c.Transport = ifelse(o.ipV6, allowInternalAllowIPv6, allowInternalProhibitIPv6)
 	}
 
 	if o.tracer != nil {
-		o.c.Transport = otelhttp.NewTransport(o.c.Transport)
+		o.c.Transport = otelhttp.NewTransport(o.c.Transport, otelhttp.WithClientTrace(func(ctx context.Context) *httptrace.ClientTrace {
+			return otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutHeaders(), otelhttptrace.WithoutSubSpans())
+		}))
 	}
 
-	return &retryablehttp.Client{
-		HTTPClient:   o.c,
-		Logger:       o.l,
-		RetryWaitMin: o.retryWaitMin,
-		RetryWaitMax: o.retryWaitMax,
-		RetryMax:     o.retryMax,
-		CheckRetry:   retryablehttp.DefaultRetryPolicy,
-		Backoff:      retryablehttp.DefaultBackoff,
+	cl := retryablehttp.NewClient()
+	cl.HTTPClient = o.c
+	cl.Logger = o.l
+	cl.RetryWaitMin = o.retryWaitMin
+	cl.RetryWaitMax = o.retryWaitMax
+	cl.RetryMax = o.retryMax
+	cl.CheckRetry = retryablehttp.DefaultRetryPolicy
+	cl.Backoff = retryablehttp.DefaultBackoff
+	return cl
+}
+
+// SetOAuth2 modifies the given client to enable OAuth2 authentication. Requests
+// with the client should always use the returned context.
+//
+//	client := http.NewResilientClient(opts...)
+//	ctx, client = httpx.SetOAuth2(ctx, client, oauth2Config, oauth2Token)
+//	req, err := retryablehttp.NewRequestWithContext(ctx, ...)
+//	if err != nil { /* ... */ }
+//	res, err := client.Do(req)
+func SetOAuth2(ctx context.Context, cl *retryablehttp.Client, c OAuth2Config, t *oauth2.Token) (context.Context, *retryablehttp.Client) {
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, cl.HTTPClient)
+	cl.HTTPClient = c.Client(ctx, t)
+	return ctx, cl
+}
+
+type OAuth2Config interface {
+	Client(context.Context, *oauth2.Token) *http.Client
+}
+
+func ifelse[A any](b bool, x, y A) A {
+	if b {
+		return x
 	}
+	return y
 }

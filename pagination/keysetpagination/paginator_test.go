@@ -35,7 +35,7 @@ func TestPaginator(t *testing.T) {
 		q = q.Scope(Paginate[testItem](paginator))
 
 		sql, args := q.ToSQL(&pop.Model{Value: new(testItem)})
-		assert.Equal(t, "SELECT test_items.created_at, test_items.pk FROM test_items AS test_items WHERE \"pk\" > $1 ORDER BY \"pk\" ASC LIMIT 11", sql)
+		assert.Equal(t, `SELECT test_items.created_at, test_items.pk FROM test_items AS test_items WHERE "test_items"."pk" > $1 ORDER BY "test_items"."pk" ASC LIMIT 11`, sql)
 		assert.Equal(t, []interface{}{"token"}, args)
 	})
 
@@ -49,7 +49,7 @@ func TestPaginator(t *testing.T) {
 		q = q.Scope(Paginate[testItem](paginator))
 
 		sql, args := q.ToSQL(&pop.Model{Value: new(testItem)})
-		assert.Equal(t, "SELECT test_items.created_at, test_items.pk FROM test_items AS test_items WHERE `pk` > ? ORDER BY `pk` ASC LIMIT 11", sql)
+		assert.Equal(t, "SELECT test_items.created_at, test_items.pk FROM test_items AS test_items WHERE `test_items`.`pk` > ? ORDER BY `test_items`.`pk` ASC LIMIT 11", sql)
 		assert.Equal(t, []interface{}{"token"}, args)
 	})
 
@@ -168,6 +168,26 @@ func TestParse(t *testing.T) {
 		_, err := Parse(url.Values{"page_size": {"invalid-int"}}, NewStringPageToken)
 		require.ErrorIs(t, err, strconv.ErrSyntax)
 	})
+
+	t.Run("empty tokens and page sizes work as if unset, empty values are skipped", func(t *testing.T) {
+		opts, err := Parse(url.Values{}, NewStringPageToken)
+		require.NoError(t, err)
+		paginator := GetPaginator(append(opts, WithDefaultToken(StringPageToken("default")))...)
+		assert.Equal(t, "default", paginator.Token().Encode())
+		assert.Equal(t, 100, paginator.Size())
+
+		opts, err = Parse(url.Values{"page_token": {""}, "page_size": {""}}, NewStringPageToken)
+		require.NoError(t, err)
+		paginator = GetPaginator(append(opts, WithDefaultToken(StringPageToken("default2")))...)
+		assert.Equal(t, "default2", paginator.Token().Encode())
+		assert.Equal(t, 100, paginator.Size())
+
+		opts, err = Parse(url.Values{"page_token": {"", "foo", ""}, "page_size": {"", "123", ""}}, NewStringPageToken)
+		require.NoError(t, err)
+		paginator = GetPaginator(append(opts, WithDefaultToken(StringPageToken("default3")))...)
+		assert.Equal(t, "foo", paginator.Token().Encode())
+		assert.Equal(t, 123, paginator.Size())
+	})
 }
 
 func TestPaginateWithAdditionalColumn(t *testing.T) {
@@ -185,31 +205,31 @@ func TestPaginateWithAdditionalColumn(t *testing.T) {
 		{
 			d:    "with sort by created_at DESC",
 			opts: []Option{WithToken(MapPageToken{"pk": "token_value", "created_at": "timestamp"}), WithColumn("created_at", "DESC")},
-			e:    `WHERE ("created_at" < $1 OR ("created_at" = $2 AND "pk" > $3)) ORDER BY "created_at" DESC, "pk" ASC`,
+			e:    `WHERE ("test_items"."created_at" < $1 OR ("test_items"."created_at" = $2 AND "test_items"."pk" > $3)) ORDER BY "test_items"."created_at" DESC, "test_items"."pk" ASC`,
 			args: []interface{}{"timestamp", "timestamp", "token_value"},
 		},
 		{
 			d:    "with sort by created_at ASC",
 			opts: []Option{WithToken(MapPageToken{"pk": "token_value", "created_at": "timestamp"}), WithColumn("created_at", "ASC")},
-			e:    `WHERE ("created_at" > $1 OR ("created_at" = $2 AND "pk" > $3)) ORDER BY "created_at" ASC, "pk" ASC`,
+			e:    `WHERE ("test_items"."created_at" > $1 OR ("test_items"."created_at" = $2 AND "test_items"."pk" > $3)) ORDER BY "test_items"."created_at" ASC, "test_items"."pk" ASC`,
 			args: []interface{}{"timestamp", "timestamp", "token_value"},
 		},
 		{
 			d:    "with unknown column",
 			opts: []Option{WithToken(MapPageToken{"pk": "token_value", "created_at": "timestamp"}), WithColumn("unknown_column", "ASC")},
-			e:    `WHERE "pk" > $1 ORDER BY "pk"`,
+			e:    `WHERE "test_items"."pk" > $1 ORDER BY "test_items"."pk"`,
 			args: []interface{}{"token_value"},
 		},
 		{
 			d:    "with no token value",
 			opts: []Option{WithToken(MapPageToken{"pk": "token_value"}), WithColumn("created_at", "ASC")},
-			e:    `WHERE "pk" > $1 ORDER BY "pk"`,
+			e:    `WHERE "test_items"."pk" > $1 ORDER BY "test_items"."pk"`,
 			args: []interface{}{"token_value"},
 		},
 		{
 			d:    "with unknown order",
 			opts: []Option{WithToken(MapPageToken{"pk": "token_value", "created_at": "timestamp"}), WithColumn("created_at", Order("unknown order"))},
-			e:    `WHERE "pk" > $1 ORDER BY "pk"`,
+			e:    `WHERE "test_items"."pk" > $1 ORDER BY "test_items"."pk"`,
 			args: []interface{}{"token_value"},
 		},
 	} {

@@ -5,6 +5,7 @@ package otelx
 
 import (
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/embedded"
 
 	"github.com/ory/x/logrusx"
 	"github.com/ory/x/stringsx"
@@ -89,14 +90,17 @@ func (t *Tracer) WithOTLP(other trace.Tracer) *Tracer {
 	return &Tracer{other}
 }
 
-// Provider returns a TracerProvider which in turn yieds this tracer unmodified.
+// Provider returns a TracerProvider which in turn yields this tracer unmodified.
 func (t *Tracer) Provider() trace.TracerProvider {
-	return tracerProvider{t.Tracer()}
+	return tracerProvider{t: t.Tracer()}
 }
 
 type tracerProvider struct {
+	embedded.TracerProvider
 	t trace.Tracer
 }
+
+func (tp tracerProvider) tracerProvider() {}
 
 var _ trace.TracerProvider = tracerProvider{}
 

@@ -6,6 +6,8 @@ package otelx
 import (
 	"context"
 
+	"go.opentelemetry.io/contrib/propagators/b3"
+	jaegerPropagator "go.opentelemetry.io/contrib/propagators/jaeger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -27,6 +29,12 @@ func SetupOTLP(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) {
 		clientOpts = append(clientOpts, otlptracehttp.WithInsecure())
 	}
 
+	if c.Providers.OTLP.AuthorizationHeader != "" {
+		clientOpts = append(clientOpts,
+			otlptracehttp.WithHeaders(map[string]string{"Authorization": c.Providers.OTLP.AuthorizationHeader}),
+		)
+	}
+
 	exp, err := otlptrace.New(
 		ctx, otlptracehttp.NewClient(clientOpts...),
 	)
@@ -39,6 +47,7 @@ func SetupOTLP(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) {
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
 			semconv.ServiceNameKey.String(c.ServiceName),
+			semconv.DeploymentEnvironmentKey.String(c.DeploymentEnvironment),
 		)),
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(
 			c.Providers.OTLP.Sampling.SamplingRatio,
@@ -50,6 +59,8 @@ func SetupOTLP(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) {
 
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
+		jaegerPropagator.Jaeger{},
+		b3.New(b3.WithInjectEncoding(b3.B3MultipleHeader|b3.B3SingleHeader)),
 		propagation.Baggage{},
 	))
 

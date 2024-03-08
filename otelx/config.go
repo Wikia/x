@@ -20,9 +20,10 @@ type ZipkinConfig struct {
 }
 
 type OTLPConfig struct {
-	ServerURL string       `json:"server_url"`
-	Insecure  bool         `json:"insecure"`
-	Sampling  OTLPSampling `json:"sampling"`
+	ServerURL           string       `json:"server_url"`
+	Insecure            bool         `json:"insecure"`
+	Sampling            OTLPSampling `json:"sampling"`
+	AuthorizationHeader string       `json:"authorization_header"`
 }
 
 type JaegerSampling struct {
@@ -45,9 +46,10 @@ type ProvidersConfig struct {
 }
 
 type Config struct {
-	ServiceName string          `json:"service_name"`
-	Provider    string          `json:"provider"`
-	Providers   ProvidersConfig `json:"providers"`
+	ServiceName           string          `json:"service_name"`
+	DeploymentEnvironment string          `json:"deployment_environment"`
+	Provider              string          `json:"provider"`
+	Providers             ProvidersConfig `json:"providers"`
 }
 
 //go:embed config.schema.json

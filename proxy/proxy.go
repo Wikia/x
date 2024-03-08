@@ -17,8 +17,8 @@ import (
 
 type (
 	RespMiddleware func(resp *http.Response, config *HostConfig, body []byte) ([]byte, error)
-	ReqMiddleware  func(req *http.Request, config *HostConfig, body []byte) ([]byte, error)
-	HostMapper     func(ctx context.Context, r *http.Request) (*HostConfig, error)
+	ReqMiddleware  func(req *httputil.ProxyRequest, config *HostConfig, body []byte) ([]byte, error)
+	HostMapper     func(ctx context.Context, r *http.Request) (context.Context, *HostConfig, error)
 	options        struct {
 		hostMapper      HostMapper
 		onResError      func(*http.Response, error) error
@@ -52,12 +52,17 @@ type (
 		// PathPrefix is a prefix that is prepended on the original host,
 		// but removed before forwarding.
 		PathPrefix string
+		// TrustForwardedHosts is a flag that indicates whether the proxy should trust the
+		// X-Forwarded-* headers or not.
+		TrustForwardedHeaders bool
 		// originalHost the original hostname the request is coming from.
 		// This value will be maintained internally by the proxy.
 		originalHost string
 		// originalScheme is the original scheme of the request.
 		// This value will be maintained internally by the proxy.
 		originalScheme string
+		// ForceOriginalSchemeHTTP forces the original scheme to be https if enabled.
+		ForceOriginalSchemeHTTPS bool
 	}
 	Options    func(*options)
 	contextKey string
@@ -67,6 +72,26 @@ const (
 	hostConfigKey contextKey = "host config"
 )
 
+func (c *HostConfig) setScheme(r *httputil.ProxyRequest) {
+	if c.ForceOriginalSchemeHTTPS {
+		c.originalScheme = "https"
+	} else if forwardedProto := r.In.Header.Get("X-Forwarded-Proto"); forwardedProto != "" {
+		c.originalScheme = forwardedProto
+	} else if r.In.TLS == nil {
+		c.originalScheme = "http"
+	} else {
+		c.originalScheme = "https"
+	}
+}
+
+func (c *HostConfig) setHost(r *httputil.ProxyRequest) {
+	if forwardedHost := r.In.Header.Get("X-Forwarded-Host"); forwardedHost != "" {
+		c.originalHost = forwardedHost
+	} else {
+		c.originalHost = r.In.Host
+	}
+}
+
 // rewriter is a custom internal function for altering a http.Request
 func rewriter(o *options) func(*httputil.ProxyRequest) {
 	return func(r *httputil.ProxyRequest) {
@@ -74,26 +99,28 @@ func rewriter(o *options) func(*httputil.ProxyRequest) {
 		ctx, span := otel.GetTracerProvider().Tracer("").Start(ctx, "x.proxy")
 		defer span.End()
 
-		c, err := o.getHostConfig(r.Out)
+		ctx, c, err := o.getHostConfig(ctx, r.In)
 		if err != nil {
 			o.onReqError(r.Out, err)
 			return
 		}
 
-		if forwardedProto := r.In.Header.Get("X-Forwarded-Proto"); forwardedProto != "" {
-			c.originalScheme = forwardedProto
-		} else if r.Out.TLS == nil {
-			c.originalScheme = "http"
-		} else {
-			c.originalScheme = "https"
-		}
-		if forwardedHost := r.In.Header.Get("X-Forwarded-Host"); forwardedHost != "" {
-			c.originalHost = forwardedHost
-		} else {
-			c.originalHost = r.In.Host
+		if c.TrustForwardedHeaders {
+			headers := []string{
+				"X-Forwarded-Host",
+				"X-Forwarded-Proto",
+				"X-Forwarded-For",
+			}
+			for _, h := range headers {
+				if v := r.In.Header.Get(h); v != "" {
+					r.Out.Header.Set(h, v)
+				}
+			}
 		}
 
-		*r.Out = *r.Out.WithContext(context.WithValue(ctx, hostConfigKey, c))
+		c.setScheme(r)
+		c.setHost(r)
+
 		headerRequestRewrite(r.Out, c)
 
 		var body []byte
@@ -108,7 +135,7 @@ func rewriter(o *options) func(*httputil.ProxyRequest) {
 		}
 
 		for _, m := range o.reqMiddlewares {
-			if body, err = m(r.Out, c, body); err != nil {
+			if body, err = m(r, c, body); err != nil {
 				o.onReqError(r.Out, err)
 				return
 			}
@@ -129,7 +156,7 @@ func rewriter(o *options) func(*httputil.ProxyRequest) {
 // modifyResponse is a custom internal function for altering a http.Response
 func modifyResponse(o *options) func(*http.Response) error {
 	return func(r *http.Response) error {
-		c, err := o.getHostConfig(r.Request)
+		_, c, err := o.getHostConfig(r.Request.Context(), r.Request)
 		if err != nil {
 			return err
 		}
@@ -197,24 +224,24 @@ func WithErrorHandler(eh func(w http.ResponseWriter, r *http.Request, err error)
 	}
 }
 
-func (o *options) getHostConfig(r *http.Request) (*HostConfig, error) {
-	if cached, ok := r.Context().Value(hostConfigKey).(*HostConfig); ok && cached != nil {
-		return cached, nil
+func (o *options) getHostConfig(ctx context.Context, r *http.Request) (context.Context, *HostConfig, error) {
+	if cached, ok := ctx.Value(hostConfigKey).(*HostConfig); ok && cached != nil {
+		return ctx, cached, nil
 	}
-	c, err := o.hostMapper(r.Context(), r)
+	ctx, c, err := o.hostMapper(ctx, r)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// cache the host config in the request context
 	// this will be passed on to the request and response proxy functions
-	*r = *r.WithContext(context.WithValue(r.Context(), hostConfigKey, c))
-	return c, nil
+	ctx = context.WithValue(ctx, hostConfigKey, c)
+	return ctx, c, nil
 }
 
 func (o *options) beforeProxyMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		// get the hostmapper configurations before the request is proxied
-		c, err := o.getHostConfig(request)
+		ctx, c, err := o.getHostConfig(request.Context(), request)
 		if err != nil {
 			o.onReqError(request, err)
 			return
@@ -225,7 +252,8 @@ func (o *options) beforeProxyMiddleware(h http.Handler) http.Handler {
 		if c.CorsEnabled && c.CorsOptions != nil {
 			cors.New(*c.CorsOptions).HandlerFunc(writer, request)
 		}
-		h.ServeHTTP(writer, request)
+
+		h.ServeHTTP(writer, request.WithContext(ctx))
 	})
 }
 

@@ -76,9 +76,9 @@ func SetupJaeger(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) 
 	// context propagation (ref: https://www.w3.org/TR/trace-context/
 	// and https://www.w3.org/TR/baggage/).
 	prop := propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
 		jaegerPropagator.Jaeger{},
 		b3.New(b3.WithInjectEncoding(b3.B3MultipleHeader|b3.B3SingleHeader)),
-		propagation.TraceContext{},
 		propagation.Baggage{},
 	)
 	otel.SetTextMapPropagator(prop)
